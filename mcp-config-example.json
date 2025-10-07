@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "git": {
+      "command": "java",
+      "args": [
+        "-jar",
+        "build/libs/git-0.0.1-SNAPSHOT.jar"
+      ],
+      "description": "Git operations MCP server using JGit"
+    }
+  }
+}

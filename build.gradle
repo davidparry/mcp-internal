@@ -1,0 +1,55 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.6'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'ai.qodo.mcp'
+version = '1.0.0'
+description = 'git'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+ext {
+    set('springAiVersion', "1.0.3")
+    set('jgitVersion', '7.3.0.202506031305-r')
+}
+
+dependencies {
+
+    implementation 'org.springframework.boot:spring-boot-starter'
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server'
+    implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
+    implementation "org.eclipse.jgit:org.eclipse.jgit.ssh.apache:${jgitVersion}"
+    implementation "org.eclipse.jgit:org.eclipse.jgit.ssh.apache.agent:${jgitVersion}"
+    implementation "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
+    implementation 'net.i2p.crypto:eddsa:0.3.0'  // EdDSA support for Ed25519 SSH keys
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.ai:spring-ai-bom:${springAiVersion}"
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
