@@ -1,27 +1,21 @@
 package ai.qodo.mcp.config;
 
 import ai.qodo.mcp.service.GitService;
-import io.modelcontextprotocol.server.McpSyncServer;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.ai.mcp.server.autoconfigure.McpServerAutoConfiguration;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationListener;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.event.ContextRefreshedEvent;
 
 import java.io.File;
-import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 
 /**
  * Configuration for Git MCP Server.
@@ -31,17 +25,20 @@ import java.util.function.Consumer;
  * <p>
  * The Spring AI MCP Server starter will automatically discover and expose
  * the GitService methods as MCP tools when properly annotated.
+ * <p>
+ * This configuration is conditional and will only be loaded when the property
+ * 'git.mcp.enabled' is set to true in application.properties.
  */
 @Configuration
-public class GitMcpConfiguration  {
+public class GitMcpConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(GitMcpConfiguration.class);
     private final CountDownLatch rootsLatch = new CountDownLatch(1);
+    private final ApplicationContext context;
     private String defaultLocalPath;
     private boolean rootsInitialized = false;
     private McpSchema.ClientCapabilities clientCapabilities;
     private McpSyncServerExchange serverExchange;
-    private final ApplicationContext context;
 
     public GitMcpConfiguration(ApplicationContext context) {
         this.context = context;
@@ -99,7 +96,7 @@ public class GitMcpConfiguration  {
         try {
             logger.info("Requesting roots from client...");
             McpSchema.ListRootsResult roots = serverExchange.listRoots();
-            
+
             if (roots != null && !roots.roots().isEmpty()) {
                 logger.info("Received {} root(s) from client", roots.roots().size());
                 initRootPath(roots.roots());
@@ -111,7 +108,15 @@ public class GitMcpConfiguration  {
         }
     }
 
+    /**
+     * Based on the conditional if set in properties and is not enabled then the GitService will not load and no
+     * tool lists will be returned and no init of data will be a factor either.
+     *
+     * @param gitservice
+     * @return
+     */
     @Bean
+    @ConditionalOnProperty(name = "mcp.git.enabled", havingValue = "true", matchIfMissing = true)
     public List<ToolCallback> gitTools(GitService gitservice) {
         return List.of(ToolCallbacks.from(gitservice));
     }
@@ -139,64 +144,5 @@ public class GitMcpConfiguration  {
         };
     }
 
-    /**
-     * Handler for MCP client initialization.
-     * This bean is called when the MCP client sends its initialization request with capabilities.
-     */
-    @Bean
-    public Consumer<McpSchema.ClientCapabilities> clientCapabilitiesHandler(GitMcpConfiguration mcpConfiguration) {
-        return capabilities -> {
-            logger.info("Received client capabilities during initialization");
-            mcpConfiguration.clientCapabilities = capabilities;
-
-
-        };
-    }
-
-    /**
-     * Handler that receives the McpSyncServerExchange after initialization.
-     * This bean is called by the Spring AI MCP framework when the server exchange is ready,
-     * which happens after the client sends the initialized notification.
-     * Use this to proactively request roots from the client.
-     */
-    @Bean(name = "mcpServerExchangeConsumer")
-    public Consumer<McpSyncServerExchange> mcpServerExchangeConsumer(GitMcpConfiguration mcpConfiguration) {
-        return exchange -> {
-            logger.info("Received server exchange after initialization");
-            mcpConfiguration.setServerExchange(exchange);
-            mcpConfiguration.requestRootsFromClient();
-        };
-    }
-
-    @Bean(name = "mcpServerInitializedConsumer")
-    public Consumer<McpSyncServerExchange> mcpServerInitializedConsumer() {
-        logger.info("!!! Registering mcpServerInitializedConsumer !!!");
-
-        return exchange -> {
-            logger.info("=================================================");
-            logger.info("!!! INITIALIZED notification received !!!");
-            logger.info("!!! Exchange is now available !!!");
-            logger.info("=================================================");
-
-            this.serverExchange = exchange;
-
-            // Now proactively request roots
-            logger.info("Proactively requesting roots from client...");
-            requestRootsFromClient();
-        };
-    }
-    @Bean(name = "serverExchangeConsumer")
-    public Consumer<McpSyncServerExchange> serverExchangeConsumer() {
-        logger.info("!!! Registering serverExchangeConsumer !!!");
-
-        return exchange -> {
-            logger.info("=================================================");
-            logger.info("!!! serverExchangeConsumer called !!!");
-            logger.info("=================================================");
-
-            this.serverExchange = exchange;
-            requestRootsFromClient();
-        };
-    }
 
 }

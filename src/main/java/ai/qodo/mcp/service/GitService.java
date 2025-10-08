@@ -16,6 +16,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.transport.SshSessionFactory;
 import org.eclipse.jgit.transport.SshTransport;
 import org.eclipse.jgit.transport.sshd.SshdSessionFactory;
 import org.eclipse.jgit.transport.sshd.SshdSessionFactoryBuilder;
@@ -28,6 +29,7 @@ import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
@@ -39,7 +41,11 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Service()
-@Scope("prototype")
+@ConditionalOnProperty(
+        name = "mcp.git.enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 public class GitService {
 
     private static final Logger logger = LoggerFactory.getLogger(GitService.class);
@@ -47,6 +53,7 @@ public class GitService {
 
     public GitService(GitMcpConfiguration gitMcpConfiguration) {
         this.mcpConfiguration = gitMcpConfiguration;
+        SshSessionFactory.setInstance(new SshdSessionFactory());
     }
 
     /**
@@ -98,7 +105,7 @@ public class GitService {
                 .call();
 
         git.close();
-        return "Repository cloned successfully to: " + targetPath;
+        return "Repository cloned successfully to repositoryPath: " + targetPath;
     }
 
     /**
