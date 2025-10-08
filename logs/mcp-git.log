@@ -1,0 +1,152 @@
+2025-10-07 18:26:34.420 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - Starting GitServiceIntegrationTest using Java 21.0.3 with PID 39406 (started by davidparry in /Users/davidparry/code/github/mcp-git)
+2025-10-07 18:26:34.420 [Test worker] DEBUG a.q.m.c.GitServiceIntegrationTest - Running with Spring Boot v3.5.6, Spring v6.2.11
+2025-10-07 18:26:34.421 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - No active profile set, falling back to 1 default profile: "default"
+2025-10-07 18:26:34.700 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Configuring server capabilities
+2025-10-07 18:26:34.758 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable tools capabilities, notification: true
+2025-10-07 18:26:34.758 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Registered tools: 10
+2025-10-07 18:26:34.758 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable resources capabilities, notification: true
+2025-10-07 18:26:34.759 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable prompts capabilities, notification: true
+2025-10-07 18:26:34.759 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable completions capabilities
+2025-10-07 18:26:34.760 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Registered roots change consumer
+2025-10-07 18:26:34.853 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - === MCP Beans Inspection ===
+2025-10-07 18:26:34.854 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Found McpSyncServer: io.modelcontextprotocol.server.McpSyncServer
+2025-10-07 18:26:34.855 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Found 2 Consumer beans:
+2025-10-07 18:26:34.855 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   - clientCapabilitiesHandler: ai.qodo.mcp.config.GitMcpConfiguration$$Lambda/0x00000070014f28b0
+2025-10-07 18:26:34.855 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   - mcpServerExchangeConsumer: ai.qodo.mcp.config.GitMcpConfiguration$$Lambda/0x00000070014f2ae8
+2025-10-07 18:26:34.855 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - === End MCP Beans Inspection ===
+2025-10-07 18:26:34.860 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - Started GitServiceIntegrationTest in 0.587 seconds (process running for 1.372)
+2025-10-07 18:26:35.213 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-7397675555140604656/profile-octo-robot
+2025-10-07 18:26:35.214 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:35.246 [Test worker] INFO  o.a.s.c.u.s.e.EdDSASecurityProviderRegistrar - getOrCreateProvider(EdDSA) created instance of net.i2p.crypto.eddsa.EdDSASecurityProvider
+2025-10-07 18:26:35.303 [Test worker] INFO  o.a.s.c.i.DefaultIoServiceFactoryFactory - No detected/configured IoServiceFactoryFactory; using Nio2ServiceFactoryFactory
+2025-10-07 18:26:36.484 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-16016147914068918538/spring-petclinic
+2025-10-07 18:26:36.485 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:37.999 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-3114396948162412671/profile-octo-robot
+2025-10-07 18:26:37.999 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:38.855 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-8960495375982904375/profile-octo-robot
+2025-10-07 18:26:38.855 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:39.798 [Test worker] INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [ai.qodo.mcp.config.GitServiceSshTest]: GitServiceSshTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2025-10-07 18:26:39.799 [Test worker] INFO  o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration ai.qodo.mcp.GitApplication for test class ai.qodo.mcp.config.GitServiceSshTest
+2025-10-07 18:26:39.801 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-3481509452036770895/profile-octo-robot
+2025-10-07 18:26:39.801 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:40.870 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-12373778585874853682/profile-octo-robot
+2025-10-07 18:26:40.870 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:41.760 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-2781842825170732221/profile-octo-robot
+2025-10-07 18:26:41.760 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:26:42.625 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-15003247862737887494/profile-octo-robot
+2025-10-07 18:26:42.625 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:38:56.772 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - Starting GitServiceIntegrationTest using Java 21.0.3 with PID 39710 (started by davidparry in /Users/davidparry/code/github/mcp-git)
+2025-10-07 18:38:56.772 [Test worker] DEBUG a.q.m.c.GitServiceIntegrationTest - Running with Spring Boot v3.5.6, Spring v6.2.11
+2025-10-07 18:38:56.772 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - No active profile set, falling back to 1 default profile: "default"
+2025-10-07 18:38:57.059 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Configuring server capabilities
+2025-10-07 18:38:57.121 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable tools capabilities, notification: true
+2025-10-07 18:38:57.122 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Registered tools: 10
+2025-10-07 18:38:57.122 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable resources capabilities, notification: true
+2025-10-07 18:38:57.122 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable prompts capabilities, notification: true
+2025-10-07 18:38:57.122 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable completions capabilities
+2025-10-07 18:38:57.123 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Registered roots change consumer
+2025-10-07 18:38:57.211 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - === MCP Beans Inspection ===
+2025-10-07 18:38:57.212 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - McpSyncServer class: io.modelcontextprotocol.server.McpSyncServer
+2025-10-07 18:38:57.212 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Available methods:
+2025-10-07 18:38:57.212 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void close
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void notifyResourcesListChanged
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void notifyPromptsListChanged
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void addTool
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void removeTool
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void addResource
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void removeResource
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void addPrompt
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void removePrompt
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   McpAsyncServer getAsyncServer
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   Implementation getServerInfo
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void notifyToolsListChanged
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   ServerCapabilities getServerCapabilities
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void loggingNotification
+2025-10-07 18:38:57.213 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void closeGracefully
+2025-10-07 18:38:57.217 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - Started GitServiceIntegrationTest in 0.578 seconds (process running for 1.357)
+2025-10-07 18:38:57.575 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-9711901549837077274/profile-octo-robot
+2025-10-07 18:38:57.576 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:38:57.647 [Test worker] INFO  o.a.s.c.u.s.e.EdDSASecurityProviderRegistrar - getOrCreateProvider(EdDSA) created instance of net.i2p.crypto.eddsa.EdDSASecurityProvider
+2025-10-07 18:38:57.728 [Test worker] INFO  o.a.s.c.i.DefaultIoServiceFactoryFactory - No detected/configured IoServiceFactoryFactory; using Nio2ServiceFactoryFactory
+2025-10-07 18:38:58.920 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-15842250215539516341/spring-petclinic
+2025-10-07 18:38:58.920 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:39:00.568 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-7760815425775411104/profile-octo-robot
+2025-10-07 18:39:00.568 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:39:01.445 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-7191460396758566973/profile-octo-robot
+2025-10-07 18:39:01.446 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:39:02.371 [Test worker] INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [ai.qodo.mcp.config.GitServiceSshTest]: GitServiceSshTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2025-10-07 18:39:02.372 [Test worker] INFO  o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration ai.qodo.mcp.GitApplication for test class ai.qodo.mcp.config.GitServiceSshTest
+2025-10-07 18:39:02.377 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-5339229874927121508/profile-octo-robot
+2025-10-07 18:39:02.377 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:39:03.236 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-2717340179186036088/profile-octo-robot
+2025-10-07 18:39:03.236 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:39:04.132 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-8918503398881129760/profile-octo-robot
+2025-10-07 18:39:04.132 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:39:04.987 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-7129773747533025200/profile-octo-robot
+2025-10-07 18:39:04.987 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:08.194 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - Starting GitServiceIntegrationTest using Java 21.0.3 with PID 39927 (started by davidparry in /Users/davidparry/code/github/mcp-git)
+2025-10-07 18:46:08.194 [Test worker] DEBUG a.q.m.c.GitServiceIntegrationTest - Running with Spring Boot v3.5.6, Spring v6.2.11
+2025-10-07 18:46:08.195 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - No active profile set, falling back to 1 default profile: "default"
+2025-10-07 18:46:08.561 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Configuring server capabilities
+2025-10-07 18:46:08.618 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable tools capabilities, notification: true
+2025-10-07 18:46:08.619 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Registered tools: 10
+2025-10-07 18:46:08.621 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable resources capabilities, notification: true
+2025-10-07 18:46:08.624 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable prompts capabilities, notification: true
+2025-10-07 18:46:08.624 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Enable completions capabilities
+2025-10-07 18:46:08.625 [Test worker] INFO  o.s.a.m.s.a.McpServerAutoConfiguration - Registered roots change consumer
+2025-10-07 18:46:08.711 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - === MCP Beans Inspection ===
+2025-10-07 18:46:08.712 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - McpSyncServer class: io.modelcontextprotocol.server.McpSyncServer
+2025-10-07 18:46:08.712 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration - Available methods:
+2025-10-07 18:46:08.712 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void close
+2025-10-07 18:46:08.712 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void notifyResourcesListChanged
+2025-10-07 18:46:08.712 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void notifyPromptsListChanged
+2025-10-07 18:46:08.712 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   Implementation getServerInfo
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void addTool
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void removeTool
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void addResource
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void removeResource
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void addPrompt
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void removePrompt
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   McpAsyncServer getAsyncServer
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void notifyToolsListChanged
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   ServerCapabilities getServerCapabilities
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void loggingNotification
+2025-10-07 18:46:08.713 [Test worker] INFO  a.q.mcp.config.GitMcpConfiguration -   void closeGracefully
+2025-10-07 18:46:08.713 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger - === MCP Configuration Debug ===
+2025-10-07 18:46:08.713 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger - BiConsumer beans found: 1
+2025-10-07 18:46:08.714 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   - Bean name: rootsChangeHandler
+2025-10-07 18:46:08.714 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -     Bean class: ai.qodo.mcp.config.GitMcpConfiguration$$Lambda/0x00000003014e7110
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger - Consumer beans found: 2
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   - Bean name: clientCapabilitiesHandler
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -     Bean class: ai.qodo.mcp.config.GitMcpConfiguration$$Lambda/0x00000003014e7348
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   - Bean name: mcpServerExchangeConsumer
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -     Bean class: ai.qodo.mcp.config.GitMcpConfiguration$$Lambda/0x00000003014e7580
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger - Searching for MCP-related beans...
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   MCP bean: gitMcpConfiguration -> ai.qodo.mcp.config.GitMcpConfiguration$$SpringCGLIB$$0
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   MCP bean: mcpDebugger -> ai.qodo.mcp.config.McpDebugger
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   MCP bean: mcpServerExchangeConsumer -> ai.qodo.mcp.config.GitMcpConfiguration$$Lambda/0x00000003014e7580
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   MCP bean: org.springframework.ai.mcp.server.autoconfigure.McpServerAutoConfiguration -> org.springframework.ai.mcp.server.autoconfigure.McpServerAutoConfiguration
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   MCP bean: mcpSyncServer -> io.modelcontextprotocol.server.McpSyncServer
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger -   MCP bean: spring.ai.mcp.server-org.springframework.ai.mcp.server.autoconfigure.McpServerProperties -> org.springframework.ai.mcp.server.autoconfigure.McpServerProperties
+2025-10-07 18:46:08.715 [Test worker] INFO  ai.qodo.mcp.config.McpDebugger - === End Debug ===
+2025-10-07 18:46:08.719 [Test worker] INFO  a.q.m.c.GitServiceIntegrationTest - Started GitServiceIntegrationTest in 0.784 seconds (process running for 1.694)
+2025-10-07 18:46:09.070 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-1156639296145820142/profile-octo-robot
+2025-10-07 18:46:09.070 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:09.105 [Test worker] INFO  o.a.s.c.u.s.e.EdDSASecurityProviderRegistrar - getOrCreateProvider(EdDSA) created instance of net.i2p.crypto.eddsa.EdDSASecurityProvider
+2025-10-07 18:46:09.164 [Test worker] INFO  o.a.s.c.i.DefaultIoServiceFactoryFactory - No detected/configured IoServiceFactoryFactory; using Nio2ServiceFactoryFactory
+2025-10-07 18:46:10.394 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-12562466381620840998/spring-petclinic
+2025-10-07 18:46:10.394 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:12.196 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-5949360034123528338/profile-octo-robot
+2025-10-07 18:46:12.196 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:13.125 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-15010340072592539533/profile-octo-robot
+2025-10-07 18:46:13.125 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:14.017 [Test worker] INFO  o.s.t.c.s.AnnotationConfigContextLoaderUtils - Could not detect default configuration classes for test class [ai.qodo.mcp.config.GitServiceSshTest]: GitServiceSshTest does not declare any static, non-private, non-final, nested classes annotated with @Configuration.
+2025-10-07 18:46:14.018 [Test worker] INFO  o.s.b.t.c.SpringBootTestContextBootstrapper - Found @SpringBootConfiguration ai.qodo.mcp.GitApplication for test class ai.qodo.mcp.config.GitServiceSshTest
+2025-10-07 18:46:14.021 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-276571918738627881/profile-octo-robot
+2025-10-07 18:46:14.022 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:14.911 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-4782619920517256032/profile-octo-robot
+2025-10-07 18:46:14.911 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:15.901 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-8172490037589378971/profile-octo-robot
+2025-10-07 18:46:15.901 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
+2025-10-07 18:46:16.799 [Test worker] INFO  ai.qodo.mcp.service.GitService - Using path from roots: /var/folders/rq/hx1jbrxd1cg4hwgjwq9rtxj40000gn/T/junit-16573326602371331661/profile-octo-robot
+2025-10-07 18:46:16.799 [Test worker] INFO  ai.qodo.mcp.service.GitService - Configuring SSH transport with SSH directory: /Users/davidparry/.ssh
