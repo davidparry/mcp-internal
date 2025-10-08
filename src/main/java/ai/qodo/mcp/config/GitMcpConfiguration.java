@@ -33,7 +33,7 @@ import java.util.function.Consumer;
  * the GitService methods as MCP tools when properly annotated.
  */
 @Configuration
-public class GitMcpConfiguration implements ApplicationListener<ContextRefreshedEvent> {
+public class GitMcpConfiguration  {
 
     private static final Logger logger = LoggerFactory.getLogger(GitMcpConfiguration.class);
     private final CountDownLatch rootsLatch = new CountDownLatch(1);
@@ -96,11 +96,6 @@ public class GitMcpConfiguration implements ApplicationListener<ContextRefreshed
             return;
         }
 
-        if (clientCapabilities == null || clientCapabilities.roots() == null) {
-            logger.warn("Cannot request roots: client does not support roots capability");
-            return;
-        }
-
         try {
             logger.info("Requesting roots from client...");
             McpSchema.ListRootsResult roots = serverExchange.listRoots();
@@ -124,20 +119,22 @@ public class GitMcpConfiguration implements ApplicationListener<ContextRefreshed
     @Bean
     public BiConsumer<McpSyncServerExchange, List<McpSchema.Root>> rootsChangeHandler(
             GitMcpConfiguration mcpConfiguration) {
+        logger.info("!!! Registering rootsChangeHandler !!!");
+
         return (exchange, roots) -> {
-            logger.info("Received roots from client via rootsChangeHandler");
-            
-            // Store the exchange for future use
-            if (exchange != null) {
-                mcpConfiguration.setServerExchange(exchange);
-            }
-            
-            // Process the roots
+
+            setServerExchange(exchange);
+            logger.info("Server exchange stored");
+
+            // If roots are provided, use them
             if (roots != null && !roots.isEmpty()) {
-                logger.info("Registering {} root resource(s)", roots.size());
-                mcpConfiguration.initRootPath(roots);
-            } else {
-                logger.warn("Received empty roots list from client");
+                logger.info("Using {} provided roots", roots.size());
+                initRootPath(roots);
+            }
+            // If no roots provided, proactively request them from the client
+            else {
+                logger.warn("No roots provided, requesting from client...");
+                requestRootsFromClient();
             }
         };
     }
@@ -188,29 +185,18 @@ public class GitMcpConfiguration implements ApplicationListener<ContextRefreshed
             requestRootsFromClient();
         };
     }
+    @Bean(name = "serverExchangeConsumer")
+    public Consumer<McpSyncServerExchange> serverExchangeConsumer() {
+        logger.info("!!! Registering serverExchangeConsumer !!!");
 
+        return exchange -> {
+            logger.info("=================================================");
+            logger.info("!!! serverExchangeConsumer called !!!");
+            logger.info("=================================================");
 
-
-    @Override
-    public void onApplicationEvent(ContextRefreshedEvent event) {
-        logger.info("=== MCP Beans Inspection ===");
-        try {
-            McpSyncServer server = context.getBean(McpSyncServer.class);
-
-            McpServerAutoConfiguration config = context.getBean(org.springframework.ai.mcp.server.autoconfigure.McpServerAutoConfiguration.class);
-
-
-            if (server != null) {
-                logger.info("McpSyncServer class: {}", server.getClass().getName());
-                logger.info("Available methods:");
-                for (Method method : server.getClass().getDeclaredMethods()) {
-                    logger.info("  {} {}", method.getReturnType().getSimpleName(), method.getName());
-                }
-            }
-
-        } catch (Exception e) {
-            logger.warn("No McpSyncServer bean found");
-        }
-
+            this.serverExchange = exchange;
+            requestRootsFromClient();
+        };
     }
+
 }

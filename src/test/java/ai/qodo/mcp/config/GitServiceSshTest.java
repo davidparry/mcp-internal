@@ -75,7 +75,7 @@ class GitServiceSshTest {
         // NOTE: This requires SSH keys to be properly configured
         String remoteUrl = "git@github.com:davidparry/profile-octo-robot.git";
         
-        String result = gitService.cloneRepository(remoteUrl);
+        String result = gitService.cloneRepository(remoteUrl, null);
         
         // Verify the clone was successful
         assertNotNull(result);
@@ -100,7 +100,7 @@ class GitServiceSshTest {
     void testGetStatusAfterSshClone() throws Exception {
         // Clone the repository first using SSH
         String remoteUrl = "git@github.com:davidparry/profile-octo-robot.git";
-        String cloneResult = gitService.cloneRepository(remoteUrl);
+        String cloneResult = gitService.cloneRepository(remoteUrl, null);
         
         // Extract the cloned repository path
         clonedRepoPath = cloneResult.substring(cloneResult.indexOf(":") + 1).trim();
@@ -119,7 +119,7 @@ class GitServiceSshTest {
     void testGetLogAfterSshClone() throws Exception {
         // Clone the repository first using SSH
         String remoteUrl = "git@github.com:davidparry/profile-octo-robot.git";
-        String cloneResult = gitService.cloneRepository(remoteUrl);
+        String cloneResult = gitService.cloneRepository(remoteUrl, null);
         
         // Extract the cloned repository path
         clonedRepoPath = cloneResult.substring(cloneResult.indexOf(":") + 1).trim();
@@ -138,7 +138,7 @@ class GitServiceSshTest {
     void testListBranchesAfterSshClone() throws Exception {
         // Clone the repository first using SSH
         String remoteUrl = "git@github.com:davidparry/profile-octo-robot.git";
-        String cloneResult = gitService.cloneRepository(remoteUrl);
+        String cloneResult = gitService.cloneRepository(remoteUrl, null);
         
         // Extract the cloned repository path
         clonedRepoPath = cloneResult.substring(cloneResult.indexOf(":") + 1).trim();

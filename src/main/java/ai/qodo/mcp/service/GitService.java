@@ -1,7 +1,7 @@
 package ai.qodo.mcp.service;
 
 import ai.qodo.mcp.config.GitMcpConfiguration;
-import io.modelcontextprotocol.spec.McpSchema;
+import io.modelcontextprotocol.server.McpSyncServerExchange;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.TransportConfigCallback;
@@ -17,7 +17,6 @@ import org.eclipse.jgit.revwalk.RevTree;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.SshTransport;
-import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.sshd.SshdSessionFactory;
 import org.eclipse.jgit.transport.sshd.SshdSessionFactoryBuilder;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
@@ -25,18 +24,18 @@ import org.eclipse.jgit.treewalk.CanonicalTreeParser;
 import org.eclipse.jgit.util.FS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 @Service()
@@ -54,8 +53,16 @@ public class GitService {
      * Checks if the client has root capabilities and waits for roots to be initialized.
      * This method blocks until roots are received or timeout occurs.
      */
-    private void ensureRootsInitialized() throws InterruptedException {
+    private void ensureRootsInitialized(ToolContext toolContext) throws InterruptedException {
         if (!this.mcpConfiguration.isRootsInitialized()) {
+            Optional<McpSyncServerExchange> exchange = McpToolUtils.getMcpExchange(toolContext);
+            if (exchange.isPresent()) {
+                logger.info("Got exchange from tool context, requesting roots");
+                mcpConfiguration.setServerExchange(exchange.get());
+                mcpConfiguration.requestRootsFromClient();
+            }
+
+
             logger.info("Waiting for roots to be initialized...");
             boolean received = this.mcpConfiguration.getRootsLatch().await(90, TimeUnit.SECONDS);
             if (!received) {
@@ -65,12 +72,16 @@ public class GitService {
     }
 
 
-
-
-    @Tool(name = "git_clone_repository", description = "Clones a remote Git repository to the local filesystem. Accepts both HTTPS and SSH URLs (e.g., 'https://github.com/user/repo.git' or 'git@github.com:user/repo.git'). The repository will be cloned to a directory named after the repository in the configured default path. Supports SSH authentication using standard SSH keys from ~/.ssh/. Use this to create a local copy of a remote repository.")
-    public String cloneRepository(String remoteUrl) throws GitAPIException, InterruptedException {
+    @Tool(name = "git_clone_repository", description = "Clones a remote Git repository to the local filesystem. " +
+            "Accepts both HTTPS and SSH URLs (e.g., 'https://github.com/user/repo.git' or 'git@github.com:user/repo" +
+            ".git'). The repository will be cloned to a directory named after the repository in the configured " +
+            "default path. Supports SSH authentication using standard SSH keys from ~/.ssh/. Use this to create a " +
+            "local copy of a remote repository.")
+    public String cloneRepository(
+            @ToolParam(description = "The remote url for the repository to clone") String remoteUrl,
+            ToolContext toolContext) throws GitAPIException, InterruptedException {
         // Ensure roots are initialized before proceeding
-        ensureRootsInitialized();
+        ensureRootsInitialized(toolContext);
 
         String repoName = extractRepoName(remoteUrl);
         String targetPath = this.mcpConfiguration.getDefaultLocalPath() + File.separator + repoName;
@@ -79,7 +90,8 @@ public class GitService {
         // Configure SSH transport with specific key file
         TransportConfigCallback transportConfigCallback = createSshTransportConfig();
 
-        Git git = Git.cloneRepository()
+        Git git = Git
+                .cloneRepository()
                 .setURI(remoteUrl)
                 .setDirectory(new File(targetPath))
                 .setTransportConfigCallback(transportConfigCallback)
@@ -97,13 +109,12 @@ public class GitService {
         // Get the SSH directory and home directory
         File homeDir = FS.DETECTED.userHome();
         File sshDir = new File(homeDir, ".ssh");
-        
+
         logger.info("Configuring SSH transport with SSH directory: {}", sshDir.getAbsolutePath());
 
         return transport -> {
-            if (transport instanceof SshTransport) {
-                SshTransport sshTransport = (SshTransport) transport;
-                
+            if (transport instanceof SshTransport sshTransport) {
+
                 // Create a custom SSH session factory with the SSH directory
                 // This will automatically look for standard key files (id_rsa, id_ed25519, etc.)
                 SshdSessionFactory sshSessionFactory = new SshdSessionFactoryBuilder()
@@ -111,7 +122,7 @@ public class GitService {
                         .setSshDirectory(sshDir)
                         .setHomeDirectory(homeDir)
                         .build(null);
-                
+
                 sshTransport.setSshSessionFactory(sshSessionFactory);
             }
         };
@@ -154,7 +165,9 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_log", description = "Retrieves the commit history for a Git repository. Returns a formatted log showing commit hashes, authors, dates, and messages. Use this to view the history of changes in the repository.")
+    @Tool(name = "git_log", description = "Retrieves the commit history for a Git repository. Returns a formatted log" +
+            " showing commit hashes, authors, dates, and messages. Use this to view the history of changes in the " +
+            "repository.")
     public String getLog(String repositoryPath, int maxCount) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             Iterable<RevCommit> logs = git.log().setMaxCount(maxCount).call();
@@ -178,7 +191,8 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_branches", description = "Lists all branches in the repository. Shows the current branch with an asterisk (*) and all other available branches. Use this to see what branches exist in the repository.")
+    @Tool(name = "git_branches", description = "Lists all branches in the repository. Shows the current branch with " +
+            "an asterisk (*) and all other available branches. Use this to see what branches exist in the repository.")
     public String listBranches(String repositoryPath) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             List<Ref> branches = git.branchList().call();
@@ -201,7 +215,9 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_create_branch", description = "Creates a new branch in the repository with the specified name. The new branch will be created from the current HEAD position. Use this when you need to start working on a new feature or fix.")
+    @Tool(name = "git_create_branch", description = "Creates a new branch in the repository with the specified name. " +
+            "The new branch will be created from the current HEAD position. Use this when you need to start working " +
+            "on a new feature or fix.")
     public String createBranch(String repositoryPath, String branchName) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             git.branchCreate().setName(branchName).call();
@@ -210,7 +226,8 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_checkout", description = "Switches the working directory to the specified branch. Use this to change between different branches in the repository to work on different features or versions.")
+    @Tool(name = "git_checkout", description = "Switches the working directory to the specified branch. Use this to " +
+            "change between different branches in the repository to work on different features or versions.")
     public String checkoutBranch(String repositoryPath, String branchName) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             git.checkout().setName(branchName).call();
@@ -219,7 +236,9 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_commit", description = "Creates a new commit with the specified message and files. If no files are specified, all changes in the working directory will be staged and committed. Use this to save your changes to the repository history.")
+    @Tool(name = "git_commit", description = "Creates a new commit with the specified message and files. If no files " +
+            "are specified, all changes in the working directory will be staged and committed. Use this to save your " +
+            "changes to the repository history.")
     public String commit(String repositoryPath, String message,
                          List<String> files) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
@@ -239,7 +258,9 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_push", description = "Pushes local commits to a remote repository. Uploads the specified branch to the remote repository (e.g., 'origin'). Use this to share your local commits with others or backup your work to a remote server.")
+    @Tool(name = "git_push", description = "Pushes local commits to a remote repository. Uploads the specified branch" +
+            " to the remote repository (e.g., 'origin'). Use this to share your local commits with others or backup " +
+            "your work to a remote server.")
     public String push(String repositoryPath, String remote, String branch) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             git.push().setRemote(remote).add(branch).call();
@@ -248,7 +269,8 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_pull", description = "Fetches and merges changes from the remote repository into the current branch. Use this to update your local repository with the latest changes from the remote server.")
+    @Tool(name = "git_pull", description = "Fetches and merges changes from the remote repository into the current " +
+            "branch. Use this to update your local repository with the latest changes from the remote server.")
     public String pull(String repositoryPath) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             git.pull().call();
@@ -257,7 +279,10 @@ public class GitService {
         }
     }
 
-    @Tool(name = "git_diff", description = "Shows the differences between two commits. If oldCommit and newCommit are not specified, it defaults to comparing HEAD^ with HEAD (the last commit). Returns a detailed diff showing what changed between the two commits. Use this to review changes between different versions of the code.")
+    @Tool(name = "git_diff", description = "Shows the differences between two commits. If oldCommit and newCommit are" +
+            " not specified, it defaults to comparing HEAD^ with HEAD (the last commit). Returns a detailed diff " +
+            "showing what changed between the two commits. Use this to review changes between different versions of " +
+            "the code.")
     public String diff(String repositoryPath, String oldCommit, String newCommit) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             Repository repository = git.getRepository();
