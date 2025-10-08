@@ -108,19 +108,6 @@ public class GitMcpConfiguration {
         }
     }
 
-    /**
-     * Based on the conditional if set in properties and is not enabled then the GitService will not load and no
-     * tool lists will be returned and no init of data will be a factor either.
-     *
-     * @param gitservice
-     * @return
-     */
-    @Bean
-    @ConditionalOnProperty(name = "mcp.git.enabled", havingValue = "true", matchIfMissing = true)
-    public List<ToolCallback> gitTools(GitService gitservice) {
-        return List.of(ToolCallbacks.from(gitservice));
-    }
-
     @Bean
     public BiConsumer<McpSyncServerExchange, List<McpSchema.Root>> rootsChangeHandler(
             GitMcpConfiguration mcpConfiguration) {

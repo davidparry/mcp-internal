@@ -14,7 +14,7 @@
         </encoder>
         
         <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
-            <fileNamePattern>logs/mcp-git.%i.log</fileNamePattern>
+            <fileNamePattern>logs/mcp-internal.%i.log</fileNamePattern>
             <minIndex>1</minIndex>
             <maxIndex>1</maxIndex>
         </rollingPolicy>

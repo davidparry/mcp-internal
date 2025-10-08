@@ -2,6 +2,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
+    id 'org.unbroken-dome.test-sets' version '4.1.0'
 }
 
 group = 'ai.qodo.mcp'
@@ -12,6 +13,10 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs << '-parameters'
 }
 
 configurations {
@@ -39,6 +44,7 @@ repositories {
 dependencies {
     implementation 'com.atlassian.jira:jira-rest-java-client-api:7.0.1'
     implementation 'com.atlassian.jira:jira-rest-java-client-core:7.0.1'
+    implementation 'io.atlassian.fugue:fugue:5.0.0'
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server'
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
@@ -60,4 +66,8 @@ dependencyManagement {
 
 tasks.named('test') {
     useJUnitPlatform()
+}
+
+testSets {
+    integrationTest
 }
