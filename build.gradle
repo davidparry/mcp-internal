@@ -29,8 +29,16 @@ ext {
     set('jgitVersion', '7.3.0.202506031305-r')
 }
 
-dependencies {
+repositories {
+    mavenCentral()
+    maven {
+        url 'https://maven.atlassian.com/content/repositories/atlassian-public/'
+    }
+}
 
+dependencies {
+    implementation 'com.atlassian.jira:jira-rest-java-client-api:7.0.1'
+    implementation 'com.atlassian.jira:jira-rest-java-client-core:7.0.1'
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server'
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
