@@ -124,7 +124,7 @@ public class GitMcpConfiguration {
     @Bean
     public BiConsumer<McpSyncServerExchange, List<McpSchema.Root>> rootsChangeHandler(
             GitMcpConfiguration mcpConfiguration) {
-        logger.info("!!! Registering rootsChangeHandler !!!");
+        logger.info("Registering rootsChangeHandler");
 
         return (exchange, roots) -> {
 
