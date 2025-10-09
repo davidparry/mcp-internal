@@ -1,12 +1,14 @@
-# Git MCP Server
+# MCP Internal Server
 
-A Model Context Protocol (MCP) server implementation that provides Git operations through JGit, enabling AI assistants and other MCP clients to interact with Git repositories.
+A Model Context Protocol (MCP) server implementation that provides Git operations, Jira integration, and Terminal command execution, enabling AI assistants and other MCP clients to interact with development tools.
 
 ## Overview
 
-This MCP server exposes Git functionality through a Spring Boot application using:
+This MCP server exposes multiple development tools through a Spring Boot application using:
 - **Spring AI MCP Server** (`spring-ai-starter-mcp-server`) for the MCP protocol implementation
 - **JGit** (`org.eclipse.jgit:7.3.0.202506031305-r`) for Git operations
+- **Jira REST Client** for Jira integration
+- **Native Process Execution** for terminal command execution
 
 ## Features
 
@@ -304,6 +306,172 @@ Shows differences between commits.
 
 **Returns:** Diff output
 
+---
+
+## Terminal Service
+
+The `TerminalService` provides secure terminal command execution with MCP Roots integration, command blocking, and timeout protection.
+
+### Features
+
+- **MCP Roots Integration**: Automatically uses the first root as the working directory for command execution
+- **Command Blocking**: Blocks dangerous commands (rm, sudo, shutdown, etc.) for security
+- **Timeout Protection**: Commands automatically timeout after a configurable duration (default: 30 seconds)
+- **Separate Shell Execution**: Each command runs in a separate shell process that exits after completion
+- **Error Handling**: Returns detailed error information including exit codes and error messages
+- **Cross-Platform**: Works on both Unix-like systems (sh) and Windows (cmd.exe)
+
+### Security Features
+
+The following commands are blocked for security:
+- File deletion: `rm`, `rmdir`, `del`
+- Disk operations: `format`, `mkfs`, `dd`, `fdisk`, `parted`
+- System control: `shutdown`, `reboot`, `halt`, `poweroff`, `init`, `systemctl`
+- Process control: `kill`, `killall`, `pkill`
+- Permission changes: `chmod`, `chown`, `chgrp`
+- User management: `passwd`, `sudo`, `su`, `visudo`, `usermod`, `useradd`, `userdel`
+- Fork bombs and malicious scripts
+
+### TerminalService Methods
+
+#### `executeCommand(String command, Integer timeoutSeconds, ToolContext toolContext)`
+Executes a shell command in a separate process and returns the output.
+
+**Behavior:**
+- Blocks until roots are initialized (if client supports roots capability)
+- Uses the first root as the working directory
+- Validates command against blocked list before execution
+- Runs command with timeout protection
+- Returns both stdout and stderr
+- Automatically kills hanging processes
+
+**Parameters:**
+- `command`: The shell command to execute (required)
+- `timeoutSeconds`: Optional timeout in seconds (default: 30)
+- `toolContext`: The tool context for MCP integration
+
+**Returns:** `TerminalResult` object containing:
+- `output`: Standard output from the command
+- `error`: Standard error from the command
+- `exitCode`: Process exit code
+- `isError`: Boolean indicating if an error occurred
+- `errorMessage`: Human-readable error message if applicable
+
+**Example:**
+```java
+@Autowired
+private TerminalService terminalService;
+
+// Execute a simple command
+TerminalResult result = terminalService.executeCommand("ls -la", null, toolContext);
+System.out.println(result.getOutput());
+
+// Execute with custom timeout
+TerminalResult result = terminalService.executeCommand("npm install", 120, toolContext);
+if (result.isError()) {
+    System.err.println("Command failed: " + result.getErrorMessage());
+}
+```
+
+### TerminalResult Class
+
+The `TerminalResult` class encapsulates the result of a terminal command execution:
+
+```java
+public class TerminalResult {
+    private final String output;        // stdout content
+    private final String error;         // stderr content
+    private final int exitCode;         // process exit code
+    private final boolean isError;      // true if command failed
+    private final String errorMessage;  // error description
+    
+    // Getters...
+    public String toString();  // Formatted output for display
+}
+```
+
+### Usage Examples
+
+#### Example 1: Build a Project
+```java
+TerminalResult result = terminalService.executeCommand(
+    "./gradlew build", 
+    300,  // 5 minute timeout
+    toolContext
+);
+
+if (!result.isError()) {
+    System.out.println("Build successful!");
+} else {
+    System.err.println("Build failed: " + result.getErrorMessage());
+}
+```
+
+#### Example 2: Run Tests
+```java
+TerminalResult result = terminalService.executeCommand(
+    "npm test", 
+    180,  // 3 minute timeout
+    toolContext
+);
+
+System.out.println(result.getOutput());
+```
+
+#### Example 3: Check System Information
+```java
+TerminalResult result = terminalService.executeCommand(
+    "uname -a", 
+    null,  // use default timeout
+    toolContext
+);
+
+System.out.println("System: " + result.getOutput());
+```
+
+### Error Handling
+
+The service handles various error conditions:
+
+1. **Blocked Commands**: Returns error immediately without execution
+2. **Timeout**: Kills the process and returns timeout error
+3. **Non-zero Exit Code**: Returns output with error flag set
+4. **IOException**: Returns error with exception message
+5. **Empty Command**: Returns validation error
+
+Example error handling:
+```java
+TerminalResult result = terminalService.executeCommand(command, timeout, toolContext);
+
+if (result.isError()) {
+    switch (result.getErrorMessage()) {
+        case "Timeout":
+            System.err.println("Command took too long to execute");
+            break;
+        case "Command validation failed":
+            System.err.println("Command is blocked: " + result.getError());
+            break;
+        default:
+            System.err.println("Command failed with exit code: " + result.getExitCode());
+            System.err.println("Error: " + result.getError());
+    }
+}
+```
+
+### Configuration
+
+Enable/disable the Terminal service in `application.properties`:
+
+```properties
+# Terminal MCP Configuration
+mcp.terminal.enabled=${TERMINAL_MCP_ENABLED:true}
+```
+
+Set via environment variable:
+```bash
+export TERMINAL_MCP_ENABLED=true
+```
+
 ## Dependencies
 
 ```gradle
@@ -322,12 +490,25 @@ Run the tests:
 ./gradlew test
 ```
 
-The project includes unit tests for the GitService that verify:
+The project includes comprehensive unit tests:
+
+### GitService Tests
 - Repository status retrieval
 - Commit log retrieval
 - Branch listing and creation
 - Commit operations
 - Status with changes
+
+### TerminalService Tests
+- Simple command execution
+- Command timeout handling
+- Blocked command validation
+- Non-zero exit code handling
+- Working directory execution
+- Empty command validation
+- Multiple blocked commands
+- stderr output handling
+- Result formatting
 
 ## Example Scenarios
 

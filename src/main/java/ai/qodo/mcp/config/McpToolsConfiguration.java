@@ -2,19 +2,18 @@ package ai.qodo.mcp.config;
 
 import ai.qodo.mcp.service.GitService;
 import ai.qodo.mcp.service.JiraService;
+import ai.qodo.mcp.service.TerminalService;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 /**
  * Unified MCP Tools Configuration.
@@ -30,34 +29,34 @@ public class McpToolsConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolsConfiguration.class);
 
+
     /**
      * Creates a unified list of all available MCP tools.
      * This bean is marked as @Primary to resolve the ambiguity when multiple
      * List<ToolCallback> beans exist.
-     * 
+     * <p>
      * Services are injected as Optional to handle cases where they're disabled
      * via configuration properties.
-     * 
-     * @param gitService Optional GitService (only present if mcp.git.enabled=true)
-     * @param jiraService Optional JiraService (only present if mcp.jira.enabled=true)
+     *
+     * @param gitService           Optional GitService (only present if mcp.git.enabled=true)
+     * @param jiraService          Optional JiraService (only present if mcp.jira.enabled=true)
      * @param jiraMcpConfiguration JiraMcpConfiguration for validation
      * @return Combined list of all available tool callbacks
      */
     @Bean
     @Primary
-    public List<ToolCallback> allMcpTools(
-            java.util.Optional<GitService> gitService,
-            java.util.Optional<JiraService> jiraService,
-            JiraMcpConfiguration jiraMcpConfiguration) {
-        
+    public List<ToolCallback> allMcpTools(Optional<GitService> gitService, Optional<JiraService> jiraService,
+                                          Optional<TerminalService> terminalService,
+                                          JiraMcpConfiguration jiraMcpConfiguration) {
+
         List<ToolCallback> allTools = new ArrayList<>();
-        
+
         // Add Git tools if GitService is available
         gitService.ifPresent(service -> {
             logger.info("Adding Git tools to MCP server");
             allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
         });
-        
+
         // Add Jira tools if JiraService is available and properly configured
         jiraService.ifPresent(service -> {
             if (jiraMcpConfiguration.isConfigurationValid()) {
@@ -67,7 +66,14 @@ public class McpToolsConfiguration {
                 logger.warn("Jira service is available but configuration is invalid. Skipping Jira tools.");
             }
         });
-        
+
+        terminalService.ifPresent(service -> {
+            logger.info("Adding Terminal tools to MCP server");
+            allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
+
+        });
+
+
         logger.info("Total MCP tools registered: {}", allTools.size());
         return allTools;
     }
