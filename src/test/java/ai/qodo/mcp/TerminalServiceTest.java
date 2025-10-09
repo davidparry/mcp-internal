@@ -42,6 +42,7 @@ class TerminalServiceTest {
         when(mcpConfiguration.getDefaultLocalPath()).thenReturn(tempDir.toString());
         when(mcpConfiguration.isRootsInitialized()).thenReturn(true);
         when(mcpConfiguration.getRootsLatch()).thenReturn(new CountDownLatch(0));
+        when(mcpConfiguration.getDefaultTimeoutSeconds()).thenReturn(30L);
         
         terminalService = new TerminalService(mcpConfiguration);
     }

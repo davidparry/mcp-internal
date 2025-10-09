@@ -32,34 +32,17 @@ public class TerminalService {
     private static final Logger logger = LoggerFactory.getLogger(TerminalService.class);
     private final TerminalMcpConfiguration mcpConfiguration;
 
-    // Default timeout in seconds
-    private static final long DEFAULT_TIMEOUT_SECONDS = 30;
-
     public TerminalService(TerminalMcpConfiguration terminalMcpConfiguration) {
         this.mcpConfiguration = terminalMcpConfiguration;
     }
 
 
-
     /**
-     * Checks if the client has root capabilities and waits for roots to be initialized.
-     * This method blocks until roots are received or timeout occurs.
+     * Ensures roots are initialized before proceeding with operations.
+     * Delegates to configuration.
      */
     private void ensureRootsInitialized(ToolContext toolContext) throws InterruptedException {
-        if (!this.mcpConfiguration.isRootsInitialized()) {
-            Optional<McpSyncServerExchange> exchange = McpToolUtils.getMcpExchange(toolContext);
-            if (exchange.isPresent()) {
-                logger.info("Got exchange from tool context, requesting roots");
-                mcpConfiguration.setServerExchange(exchange.get());
-                mcpConfiguration.requestRootsFromClient();
-            }
-
-            logger.info("Waiting for roots to be initialized...");
-            boolean received = this.mcpConfiguration.getRootsLatch().await(90, TimeUnit.SECONDS);
-            if (!received) {
-                logger.warn("Timeout waiting for roots. Proceeding without default path.");
-            }
-        }
+        mcpConfiguration.ensureRootsInitialized(toolContext);
     }
 
     /**
@@ -114,7 +97,7 @@ public class TerminalService {
         }
 
         String workingDirectory = this.mcpConfiguration.getDefaultLocalPath();
-        long timeout = timeoutSeconds != null ? timeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
+        long timeout = timeoutSeconds != null ? timeoutSeconds : mcpConfiguration.getDefaultTimeoutSeconds();
         
         logger.info("Executing command: {} in directory: {} with timeout: {}s", 
                 command, workingDirectory, timeout);

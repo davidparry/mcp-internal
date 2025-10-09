@@ -6,8 +6,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.File;
 import java.io.IOException;
@@ -16,6 +14,7 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 /**
  * Integration test for GitService using SSH authentication.
@@ -26,34 +25,26 @@ import static org.junit.jupiter.api.Assertions.*;
  * 2. The SSH key is added to your GitHub account
  * 3. The repository git@github.com:davidparry/profile-octo-robot.git is accessible
  */
-@SpringBootTest
 class GitServiceSshTest {
 
-    @Autowired
     private GitService gitService;
-
-    @Autowired
     private GitMcpConfiguration gitMcpConfiguration;
-
 
     @TempDir
     Path tempDir;
 
     private String clonedRepoPath;
 
-
-
     @BeforeEach
     void setUp() {
-        // Set up roots with the temp directory as the base path
-        McpSchema.Root root = new McpSchema.Root(
-                tempDir.toUri().toString(),
-                "Test Root"
-        );
-
-        gitMcpConfiguration.initRootPath(List.of(root));
-
-
+        // Create a mock for GitMcpConfiguration
+        gitMcpConfiguration = mock(GitMcpConfiguration.class);
+        
+        // Configure the mock to return the temp directory when getDefaultLocalPath() is called
+        when(gitMcpConfiguration.getDefaultLocalPath()).thenReturn(tempDir.toString());
+        
+        // Inject the mock into GitService
+        gitService = new GitService(gitMcpConfiguration);
     }
 
     @AfterEach

@@ -31,12 +31,10 @@ import java.util.List;
 public class JiraMcpConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(JiraMcpConfiguration.class);
-    private final ApplicationContext context;
     private final JiraConfiguration jiraConfiguration;
 
 
-    public JiraMcpConfiguration(ApplicationContext context, JiraConfiguration jiraConfiguration) {
-        this.context = context;
+    public JiraMcpConfiguration(JiraConfiguration jiraConfiguration) {
         this.jiraConfiguration = jiraConfiguration;
     }
 

@@ -52,15 +52,20 @@ public class JiraService {
                         new BasicHttpAuthenticationHandler(jiraConfiguration.getEmail(),
                                                            jiraConfiguration.getApiToken());
 
+                // Create client - this is lazy and won't block
                 this.jiraRestClient = factory.create(jiraServerUri, authHandler);
-                logger.info("Jira REST client initialized successfully for: {}", jiraConfiguration);
+                logger.info("Jira REST client factory created for: {}", jiraConfiguration.getSiteUrl());
+                logger.info("Note: Actual connection will be established on first use");
             } catch (URISyntaxException e) {
                 logger.error("Invalid Jira site URL: {}", jiraConfiguration.getSiteUrl(), e);
-            } catch (Exception er) {
-                logger.error("");
+                this.jiraRestClient = null;
+            } catch (Exception e) {
+                logger.error("Failed to create Jira REST client factory: {}", e.getMessage(), e);
+                this.jiraRestClient = null;
             }
         } else {
-            logger.warn("Jira configuration is invalid. Service will not be initialized. {}", jiraConfiguration);
+            logger.warn("Jira configuration is invalid. Service will not be initialized.");
+            logger.warn("Please ensure JIRA_SITE_URL, JIRA_EMAIL, and JIRA_API_TOKEN environment variables are set.");
         }
     }
 
