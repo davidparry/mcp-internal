@@ -214,8 +214,9 @@ public class GitService {
     public String createBranch(String repositoryPath, String branchName) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             git.branchCreate().setName(branchName).call();
-
-            return "Branch '" + branchName + "' created successfully";
+            String output = "Branch '" + branchName + "' created successfully";
+            logger.info("Response returned {}", output);
+            return output;
         }
     }
 
@@ -224,8 +225,9 @@ public class GitService {
     public String checkoutBranch(String repositoryPath, String branchName) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             git.checkout().setName(branchName).call();
-
-            return "Switched to branch '" + branchName + "'";
+            String output = "Switched to branch '" + branchName + "'";
+            logger.info("Response returned {}", output);
+            return output;
         }
     }
 
@@ -257,13 +259,83 @@ public class GitService {
     public String push(String repositoryPath, String remote, String branch) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
             TransportConfigCallback transportConfigCallback = createSshTransportConfig();
-            git.push()
+            
+            // Execute push and capture results
+            var pushResults = git.push()
                     .setRemote(remote)
                     .add(branch)
                     .setTransportConfigCallback(transportConfigCallback)
                     .call();
-
-            return "Pushed to " + remote + "/" + branch;
+            
+            // Verify push was successful by checking the results
+            StringBuilder resultMessage = new StringBuilder();
+            boolean hasErrors = false;
+            boolean hasSuccess = false;
+            
+            for (var pushResult : pushResults) {
+                String remoteMessages = pushResult.getMessages();
+                if (remoteMessages != null && !remoteMessages.isEmpty()) {
+                    logger.info("Push result for remote {}: {}", pushResult.getURI(), remoteMessages);
+                }
+                
+                // Check each ref update
+                for (var remoteRefUpdate : pushResult.getRemoteUpdates()) {
+                    logger.info("Ref update: {} -> {} (status: {})", 
+                            remoteRefUpdate.getSrcRef(), 
+                            remoteRefUpdate.getRemoteName(), 
+                            remoteRefUpdate.getStatus());
+                    
+                    // Check if the update was successful
+                    switch (remoteRefUpdate.getStatus()) {
+                        case OK:
+                            hasSuccess = true;
+                            logger.info("Push successful for ref: {}", remoteRefUpdate.getRemoteName());
+                            break;
+                        case UP_TO_DATE:
+                            hasSuccess = true;
+                            logger.info("Ref already up-to-date: {}", remoteRefUpdate.getRemoteName());
+                            break;
+                        case REJECTED_NONFASTFORWARD:
+                        case REJECTED_NODELETE:
+                        case REJECTED_REMOTE_CHANGED:
+                        case REJECTED_OTHER_REASON:
+                            hasErrors = true;
+                            String rejectMsg = "Push rejected: " + remoteRefUpdate.getStatus();
+                            if (remoteRefUpdate.getMessage() != null) {
+                                rejectMsg += " - " + remoteRefUpdate.getMessage();
+                            }
+                            resultMessage.append(rejectMsg).append("\n");
+                            logger.error(rejectMsg);
+                            break;
+                        default:
+                            hasErrors = true;
+                            String failMsg = "Push failed with status: " + remoteRefUpdate.getStatus();
+                            if (remoteRefUpdate.getMessage() != null) {
+                                failMsg += " - " + remoteRefUpdate.getMessage();
+                            }
+                            resultMessage.append(failMsg).append("\n");
+                            logger.error(failMsg);
+                            break;
+                    }
+                }
+                
+                // Add any additional messages from the push result (informational only)
+                if (remoteMessages != null && !remoteMessages.isEmpty()) {
+                    // These are informational messages from the remote (like GitHub rule bypasses)
+                    // They don't indicate failure
+                    logger.debug("Remote messages: {}", remoteMessages);
+                }
+            }
+            
+            if (hasErrors) {
+                String errorOutput = "Push failed to " + remote + "/" + branch + "\n" + resultMessage;
+                logger.error(errorOutput);
+                throw new GitAPIException(errorOutput) {};
+            }
+            
+            String output = "Pushed to " + remote + "/" + branch;
+            logger.info("Response returned {}", output);
+            return output;
         }
     }
 

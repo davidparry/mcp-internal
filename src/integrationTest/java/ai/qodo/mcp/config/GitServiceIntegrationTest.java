@@ -142,13 +142,16 @@ class GitServiceIntegrationTest {
         // Extract the cloned repository path
         clonedRepoPath = cloneResult.substring(cloneResult.indexOf(":") + 1).trim();
         
-        // Create a new branch called test_one
-        String createBranchResult = gitService.createBranch(clonedRepoPath, "test_one");
-        assertTrue(createBranchResult.contains("Branch 'test_one' created successfully"));
+        // Create a unique branch name using timestamp to avoid conflicts
+        String branchName = "test-branch-" + System.currentTimeMillis();
         
-        // Checkout the test_one branch
-        String checkoutResult = gitService.checkoutBranch(clonedRepoPath, "test_one");
-        assertTrue(checkoutResult.contains("Switched to branch 'test_one'"));
+        // Create a new branch
+        String createBranchResult = gitService.createBranch(clonedRepoPath, branchName);
+        assertTrue(createBranchResult.contains("Branch '" + branchName + "' created successfully"));
+        
+        // Checkout the new branch
+        String checkoutResult = gitService.checkoutBranch(clonedRepoPath, branchName);
+        assertTrue(checkoutResult.contains("Switched to branch '" + branchName + "'"));
         
         // Create a file.md in the repository
         Path filePath = Path.of(clonedRepoPath, "file.md");
@@ -163,8 +166,8 @@ class GitServiceIntegrationTest {
         assertTrue(commitResult.contains("Add file.md for integration test"));
         
         // Push to remote origin
-        String pushResult = gitService.push(clonedRepoPath, "origin", "test_one");
-        assertTrue(pushResult.contains("Pushed to origin/test_one"));
+        String pushResult = gitService.push(clonedRepoPath, "origin", branchName);
+        assertTrue(pushResult.contains("Pushed to origin/" + branchName));
         
         // Checkout trunk (or main/master)
         // First, let's check what the default branch is
@@ -182,12 +185,12 @@ class GitServiceIntegrationTest {
         // Verify file.md does not exist in trunk
         assertFalse(Files.exists(filePath), "file.md should not exist in " + defaultBranch);
         
-        // Checkout test_one again
-        String checkoutTestOneAgain = gitService.checkoutBranch(clonedRepoPath, "test_one");
-        assertTrue(checkoutTestOneAgain.contains("Switched to branch 'test_one'"));
+        // Checkout the test branch again
+        String checkoutTestBranchAgain = gitService.checkoutBranch(clonedRepoPath, branchName);
+        assertTrue(checkoutTestBranchAgain.contains("Switched to branch '" + branchName + "'"));
         
         // Verify file.md is still present
-        assertTrue(Files.exists(filePath), "file.md should exist in test_one branch");
+        assertTrue(Files.exists(filePath), "file.md should exist in " + branchName + " branch");
         
         // Verify the content of file.md
         String content = Files.readString(filePath);
