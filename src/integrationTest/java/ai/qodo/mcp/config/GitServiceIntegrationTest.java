@@ -133,6 +133,68 @@ class GitServiceIntegrationTest {
         assertTrue(branches.contains("master") || branches.contains("main") || branches.contains("trunk"));
     }
 
+    @Test
+    void testCreateBranchAddFileAndPush() throws GitAPIException, InterruptedException, IOException {
+        // Clone the repository first using SSH
+        String remoteUrl = "git@github.com:davidparry/profile-octo-robot.git";
+        String cloneResult = gitService.cloneRepository(remoteUrl, null);
+        
+        // Extract the cloned repository path
+        clonedRepoPath = cloneResult.substring(cloneResult.indexOf(":") + 1).trim();
+        
+        // Create a new branch called test_one
+        String createBranchResult = gitService.createBranch(clonedRepoPath, "test_one");
+        assertTrue(createBranchResult.contains("Branch 'test_one' created successfully"));
+        
+        // Checkout the test_one branch
+        String checkoutResult = gitService.checkoutBranch(clonedRepoPath, "test_one");
+        assertTrue(checkoutResult.contains("Switched to branch 'test_one'"));
+        
+        // Create a file.md in the repository
+        Path filePath = Path.of(clonedRepoPath, "file.md");
+        Files.writeString(filePath, "# Test File\n\nThis is a test file created by integration test.");
+        
+        // Verify the file was created
+        assertTrue(Files.exists(filePath), "file.md should exist");
+        
+        // Commit the file
+        String commitResult = gitService.commit(clonedRepoPath, "Add file.md for integration test", List.of("file.md"));
+        assertTrue(commitResult.contains("Committed"));
+        assertTrue(commitResult.contains("Add file.md for integration test"));
+        
+        // Push to remote origin
+        String pushResult = gitService.push(clonedRepoPath, "origin", "test_one");
+        assertTrue(pushResult.contains("Pushed to origin/test_one"));
+        
+        // Checkout trunk (or main/master)
+        // First, let's check what the default branch is
+        String branches = gitService.listBranches(clonedRepoPath);
+        String defaultBranch = "trunk";
+        if (branches.contains("main")) {
+            defaultBranch = "main";
+        } else if (branches.contains("master")) {
+            defaultBranch = "master";
+        }
+        
+        String checkoutTrunkResult = gitService.checkoutBranch(clonedRepoPath, defaultBranch);
+        assertTrue(checkoutTrunkResult.contains("Switched to branch '" + defaultBranch + "'"));
+        
+        // Verify file.md does not exist in trunk
+        assertFalse(Files.exists(filePath), "file.md should not exist in " + defaultBranch);
+        
+        // Checkout test_one again
+        String checkoutTestOneAgain = gitService.checkoutBranch(clonedRepoPath, "test_one");
+        assertTrue(checkoutTestOneAgain.contains("Switched to branch 'test_one'"));
+        
+        // Verify file.md is still present
+        assertTrue(Files.exists(filePath), "file.md should exist in test_one branch");
+        
+        // Verify the content of file.md
+        String content = Files.readString(filePath);
+        assertTrue(content.contains("# Test File"), "file.md should contain the expected content");
+        assertTrue(content.contains("This is a test file created by integration test"), "file.md should contain the expected content");
+    }
+
     /**
      * Recursively delete a directory and all its contents
      */

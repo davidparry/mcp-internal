@@ -256,7 +256,12 @@ public class GitService {
             "your work to a remote server.")
     public String push(String repositoryPath, String remote, String branch) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
-            git.push().setRemote(remote).add(branch).call();
+            TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+            git.push()
+                    .setRemote(remote)
+                    .add(branch)
+                    .setTransportConfigCallback(transportConfigCallback)
+                    .call();
 
             return "Pushed to " + remote + "/" + branch;
         }
@@ -266,7 +271,10 @@ public class GitService {
             "branch. Use this to update your local repository with the latest changes from the remote server.")
     public String pull(String repositoryPath) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
-            git.pull().call();
+            TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+            git.pull()
+                    .setTransportConfigCallback(transportConfigCallback)
+                    .call();
 
             return "Pull completed successfully";
         }

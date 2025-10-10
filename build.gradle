@@ -71,3 +71,7 @@ tasks.named('test') {
 testSets {
     integrationTest
 }
+
+tasks.named('integrationTest') {
+    useJUnitPlatform()
+}
