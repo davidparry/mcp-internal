@@ -96,20 +96,62 @@ public class GitService {
 
     /**
      * Creates a transport configuration callback that configures SSH to use a specific private key.
-     * By default, it looks for id_ed25519 in ~/.ssh/, but can be configured to use other keys.
+     * Configured to use /home/spring/.ssh/aws_ecdsa key file.
+     * 
+     * Note: The .setPreferredAuthentications("publickey") setting tells SSH to use public key authentication.
+     * You do NOT need a separate .pub (public key) file in the directory - SSH will automatically derive 
+     * the public key from the private key file (aws_ecdsa). The private key file must exist and be readable.
      */
     private TransportConfigCallback createSshTransportConfig() {
-        // Get the SSH directory and home directory
+        // Use the specific SSH key file
         File homeDir = FS.DETECTED.userHome();
-        File sshDir = new File(homeDir, ".ssh");
-
-        logger.info("Configuring SSH transport with SSH directory: {}", sshDir.getAbsolutePath());
+        File sshDir = new File(homeDir,".ssh");
+        File keyFile = new File(sshDir, "aws_ecdsa");
+        
+        logger.debug("=== SSH Configuration Validation ===");
+        logger.debug("Detected user home: {}", homeDir);
+        logger.debug("Configured home directory: {}", homeDir.getAbsolutePath());
+        logger.debug("SSH directory: {}", sshDir.getAbsolutePath());
+        logger.debug("SSH directory exists: {}", sshDir.exists());
+        logger.debug("SSH directory readable: {}", sshDir.canRead());
+        logger.debug("Target key file: {}", keyFile.getAbsolutePath());
+        logger.debug("Key file exists: {}", keyFile.exists());
+        logger.debug("Key file readable: {}", keyFile.canRead());
+        
+        // List all files in SSH directory for debugging
+        if (sshDir.exists() && sshDir.isDirectory()) {
+            File[] files = sshDir.listFiles();
+            if (files != null && files.length > 0) {
+                logger.debug("Files in SSH directory:");
+                for (File f : files) {
+                    logger.debug("  - {} (readable: {}, size: {} bytes)", 
+                            f.getName(), f.canRead(), f.length());
+                }
+            } else {
+                logger.warn("SSH directory is empty or cannot list files");
+            }
+        }
+        
+        // Verify the key file exists and is readable
+        if (!keyFile.exists()) {
+            logger.error("SSH key file does not exist: {}", keyFile.getAbsolutePath());
+            throw new RuntimeException("SSH key file not found: " + keyFile.getAbsolutePath());
+        }
+        if (!keyFile.canRead()) {
+            logger.error("SSH key file is not readable: {}", keyFile.getAbsolutePath());
+            throw new RuntimeException("SSH key file is not readable: " + keyFile.getAbsolutePath() + 
+                    ". Check file permissions (should be 600).");
+        }
+        
+        logger.debug("SSH key validation passed. Key file size: {} bytes", keyFile.length());
+        logger.debug("=== End SSH Configuration Validation ===");
 
         return transport -> {
             if (transport instanceof SshTransport sshTransport) {
-
-                // Create a custom SSH session factory with the SSH directory
-                // This will automatically look for standard key files (id_rsa, id_ed25519, etc.)
+                logger.debug("Configuring SSH transport for connection");
+                
+                // Create a custom SSH session factory with the specific key file
+                // The public key is automatically derived from the private key - no .pub file needed
                 SshdSessionFactory sshSessionFactory = new SshdSessionFactoryBuilder()
                         .setPreferredAuthentications("publickey")
                         .setSshDirectory(sshDir)
@@ -117,6 +159,7 @@ public class GitService {
                         .build(null);
 
                 sshTransport.setSshSessionFactory(sshSessionFactory);
+                logger.debug("SSH session factory configured successfully");
             }
         };
     }
@@ -215,7 +258,7 @@ public class GitService {
         try (Git git = openRepository(repositoryPath)) {
             git.branchCreate().setName(branchName).call();
             String output = "Branch '" + branchName + "' created successfully";
-            logger.info("Response returned {}", output);
+            logger.debug("Response returned {}", output);
             return output;
         }
     }
@@ -226,7 +269,7 @@ public class GitService {
         try (Git git = openRepository(repositoryPath)) {
             git.checkout().setName(branchName).call();
             String output = "Switched to branch '" + branchName + "'";
-            logger.info("Response returned {}", output);
+            logger.debug("Response returned {}", output);
             return output;
         }
     }
@@ -257,30 +300,133 @@ public class GitService {
             " to the remote repository (e.g., 'origin'). Use this to share your local commits with others or backup " +
             "your work to a remote server.")
     public String push(String repositoryPath, String remote, String branch) throws IOException, GitAPIException {
+        return pushInternal(repositoryPath, remote, branch, false);
+    }
+
+    @Tool(name = "git_push_force", description = "Force pushes local commits to a remote repository, overwriting " +
+            "remote history. Use this when you need to update a branch that has diverged or when UP_TO_DATE status " +
+            "is incorrect. WARNING: This can overwrite remote changes. Use with caution.")
+    public String pushForce(String repositoryPath, String remote, String branch) throws IOException, GitAPIException {
+        return pushInternal(repositoryPath, remote, branch, true);
+    }
+
+    private String pushInternal(String repositoryPath, String remote, String branch, boolean force) throws IOException, GitAPIException {
+        logger.debug("The pushInternal method is called with repositoryPath: {}, remote: {}, branch: {}, force: {}", repositoryPath, remote, branch, force);
         try (Git git = openRepository(repositoryPath)) {
-            TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+            Repository repository = git.getRepository();
             
+            // Verify the remote exists and get its URL
+            String remoteUrl = repository.getConfig().getString("remote", remote, "url");
+            if (remoteUrl == null || remoteUrl.isEmpty()) {
+                String errorMsg = "Remote '" + remote + "' is not configured in the repository. Use 'git remote -v' to see configured remotes.";
+                logger.error(errorMsg);
+                throw new GitAPIException(errorMsg) {};
+            }
+            logger.debug("Remote '{}' URL: {}", remote, remoteUrl);
+            
+            // Check if the local branch exists
+            Ref localBranchRef = repository.findRef("refs/heads/" + branch);
+            if (localBranchRef == null) {
+                String errorMsg = "Local branch '" + branch + "' does not exist. Cannot push non-existent branch.";
+                logger.error(errorMsg);
+                throw new GitAPIException(errorMsg) {};
+            }
+            logger.debug("Local branch '{}' exists at commit: {}", branch, localBranchRef.getObjectId().getName());
+            
+            // Check current branch
+            String currentBranch = repository.getBranch();
+            logger.debug("Current branch: {}", currentBranch);
+            
+            // Check if there are commits to push
+            try {
+                Ref remoteBranchRef = repository.findRef("refs/remotes/" + remote + "/" + branch);
+                if (remoteBranchRef != null) {
+                    logger.debug("Remote tracking branch exists at commit: {}", remoteBranchRef.getObjectId().getName());
+                    if (localBranchRef.getObjectId().equals(remoteBranchRef.getObjectId())) {
+                        logger.warn("Local and remote branches are at the same commit. Nothing to push.");
+                    }
+                } else {
+                    logger.debug("Remote tracking branch does not exist locally. This will be a new branch on remote.");
+                }
+            } catch (Exception e) {
+                logger.warn("Could not check remote tracking branch: {}", e.getMessage());
+            }
+            
+            // Check if the branch is the default branch for the remote
+            try {
+                // First, try to get the default branch from the remote HEAD
+                Ref remoteHead = repository.findRef("refs/remotes/" + remote + "/HEAD");
+                if (remoteHead != null && remoteHead.isSymbolic()) {
+                    String defaultBranchRef = remoteHead.getTarget().getName();
+                    String defaultBranch = defaultBranchRef.replace("refs/remotes/" + remote + "/", "");
+                    logger.debug("Remote '{}' default branch: {}", remote, defaultBranch);
+                    
+                    if (branch.equals(defaultBranch)) {
+                        String errorMsg = "Cannot push to default branch '" + branch + "' of remote '" + remote + "'. " +
+                                "Pushing to the default branch (typically 'main' or 'master') is not allowed to prevent " +
+                                "accidental changes to the primary branch. Please push to a feature branch instead.";
+                        logger.error(errorMsg);
+                        throw new GitAPIException(errorMsg) {};
+                    }
+                } else {
+                    // If remote HEAD is not available, check against common default branch names
+                    logger.warn("Could not determine remote default branch from HEAD. Checking against common default branch names.");
+                    if (branch.equals("main") || branch.equals("master")) {
+                        logger.warn("Attempting to push to '{}' which is commonly a default branch. " +
+                                "This may be blocked by remote repository rules.", branch);
+                    }
+                }
+            } catch (GitAPIException e) {
+                // Re-throw GitAPIException (our custom error)
+                throw e;
+            } catch (Exception e) {
+                logger.warn("Could not verify if branch is default branch: {}", e.getMessage());
+                // Continue with push attempt - let the remote decide if it's allowed
+            }
+            
+            TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+
             // Execute push and capture results
-            var pushResults = git.push()
+            var pushCommand = git.push()
                     .setRemote(remote)
                     .add(branch)
-                    .setTransportConfigCallback(transportConfigCallback)
-                    .call();
+                    .setTransportConfigCallback(transportConfigCallback);
+            
+            if (force) {
+                pushCommand.setForce(true);
+                logger.debug("Executing FORCE push to {}/{}", remote, branch);
+            }
+            
+            var pushResults = pushCommand.call();
             
             // Verify push was successful by checking the results
             StringBuilder resultMessage = new StringBuilder();
             boolean hasErrors = false;
-            boolean hasSuccess = false;
-            
+
             for (var pushResult : pushResults) {
                 String remoteMessages = pushResult.getMessages();
                 if (remoteMessages != null && !remoteMessages.isEmpty()) {
-                    logger.info("Push result for remote {}: {}", pushResult.getURI(), remoteMessages);
+                    logger.debug("Push result for remote {}: {}", pushResult.getURI(), remoteMessages);
+                    
+                    // Check if remote messages contain error indicators
+                    // Note: "Bypassed rule violations" is informational, not an error
+                    String lowerMessages = remoteMessages.toLowerCase();
+                    boolean isBypassMessage = lowerMessages.contains("bypassed rule violations");
+                    
+                    if (!isBypassMessage && (lowerMessages.contains("error") || 
+                        lowerMessages.contains("rejected") || 
+                        lowerMessages.contains("denied"))) {
+                        hasErrors = true;
+                        resultMessage.append("Remote rejected push: ").append(remoteMessages).append("\n");
+                        logger.error("Remote rejected push with message: {}", remoteMessages);
+                    } else if (isBypassMessage) {
+                        logger.info("Push succeeded with bypassed rules: {}", remoteMessages);
+                    }
                 }
                 
                 // Check each ref update
                 for (var remoteRefUpdate : pushResult.getRemoteUpdates()) {
-                    logger.info("Ref update: {} -> {} (status: {})", 
+                    logger.debug("Ref update: {} -> {} (status: {})", 
                             remoteRefUpdate.getSrcRef(), 
                             remoteRefUpdate.getRemoteName(), 
                             remoteRefUpdate.getStatus());
@@ -288,12 +434,14 @@ public class GitService {
                     // Check if the update was successful
                     switch (remoteRefUpdate.getStatus()) {
                         case OK:
-                            hasSuccess = true;
-                            logger.info("Push successful for ref: {}", remoteRefUpdate.getRemoteName());
+                            logger.debug("Push successful for ref: {}", remoteRefUpdate.getRemoteName());
                             break;
                         case UP_TO_DATE:
-                            hasSuccess = true;
-                            logger.info("Ref already up-to-date: {}", remoteRefUpdate.getRemoteName());
+                            // UP_TO_DATE can be misleading - it means Git thinks the remote has this ref
+                            // but it might not actually exist on the remote if a previous push failed
+                            logger.warn("This may be misleading if prior Push failed. Ref reported as up-to-date: {}. If the branch doesn't exist on remote, " +
+                                    "this may indicate stale tracking information. Consider using 'git push --force' " +
+                                    "or deleting the local tracking branch.", remoteRefUpdate.getRemoteName());
                             break;
                         case REJECTED_NONFASTFORWARD:
                         case REJECTED_NODELETE:
@@ -329,12 +477,36 @@ public class GitService {
             
             if (hasErrors) {
                 String errorOutput = "Push failed to " + remote + "/" + branch + "\n" + resultMessage;
-                logger.error(errorOutput);
+                logger.error("!!! GitForce Push has failed with errors: {}", errorOutput);
                 throw new GitAPIException(errorOutput) {};
             }
             
+            // Verify the push by checking if the remote ref exists
+            try {
+                String remoteRef = "refs/remotes/" + remote + "/" + branch;
+                logger.debug("Verifying push by checking remote tracking branch: {}", remoteRef);
+                
+                // Fetch to update remote tracking branches
+                git.fetch()
+                    .setRemote(remote)
+                    .setRefSpecs("refs/heads/" + branch + ":refs/remotes/" + remote + "/" + branch)
+                    .setTransportConfigCallback(transportConfigCallback)
+                    .call();
+                
+                Ref remoteRefObj = git.getRepository().findRef(remoteRef);
+                if (remoteRefObj != null) {
+                    logger.debug("Push verified: Remote branch {} exists at commit {}", 
+                            remoteRef, remoteRefObj.getObjectId().getName());
+                } else {
+                    logger.warn("Push reported success but remote tracking branch {} not found. " +
+                            "This may be normal for new branches.", remoteRef);
+                }
+            } catch (Exception e) {
+                logger.warn("Could not verify push (this is not necessarily an error): {}", e.getMessage());
+            }
+            
             String output = "Pushed to " + remote + "/" + branch;
-            logger.info("Response returned {}", output);
+            logger.debug("Response returned {}", output);
             return output;
         }
     }
