@@ -3,6 +3,7 @@ plugins {
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
     id 'org.unbroken-dome.test-sets' version '4.1.0'
+    id 'jacoco'
 }
 
 group = 'ai.qodo.mcp'
@@ -74,4 +75,89 @@ testSets {
 
 tasks.named('integrationTest') {
     useJUnitPlatform()
+}
+
+// JaCoCo Configuration
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+// Configure JaCoCo for unit tests
+tasks.named('test') {
+    finalizedBy jacocoTestReport
+}
+
+// Configure JaCoCo for integration tests
+tasks.named('integrationTest') {
+    finalizedBy jacocoIntegrationTestReport
+}
+
+// JaCoCo test report configuration
+jacocoTestReport {
+    dependsOn test
+    
+    reports {
+        xml.required = true
+        xml.destination file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
+        
+        html.required = true
+        html.destination file("${buildDir}/reports/jacoco/test/html")
+        
+        csv.required = false
+    }
+}
+
+// JaCoCo integration test report configuration
+tasks.named('jacocoIntegrationTestReport') {
+    reports {
+        xml.required = true
+        xml.destination file("${buildDir}/reports/jacoco/integrationTest/jacocoIntegrationTestReport.xml")
+        
+        html.required = true
+        html.destination file("${buildDir}/reports/jacoco/integrationTest/html")
+        
+        csv.required = false
+    }
+}
+
+// Combined JaCoCo report for both unit and integration tests
+task jacocoFullReport(type: JacocoReport) {
+    dependsOn test, integrationTest
+    
+    sourceSets sourceSets.main
+    executionData fileTree(project.buildDir).include("jacoco/*.exec")
+    
+    reports {
+        xml.required = true
+        xml.destination file("${buildDir}/reports/jacoco/full/jacocoFullReport.xml")
+        
+        html.required = true
+        html.destination file("${buildDir}/reports/jacoco/full/html")
+        
+        csv.required = false
+    }
+}
+
+// Apply exclusions to all JaCoCo reports
+afterEvaluate {
+    tasks.withType(JacocoReport).configureEach {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/config/**',
+                '**/pojo/**',
+                '**/*Application.class'
+            ])
+        }))
+    }
+}
+
+// JaCoCo coverage verification
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.0
+            }
+        }
+    }
 }
