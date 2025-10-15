@@ -476,4 +476,384 @@ class JiraServiceTest {
             jiraService.createIssue("TEST", "InvalidType", "Summary", null, null, null);
         });
     }
+
+    @Test
+    void testShouldUpdateIssueWithPriority() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(metadataClient.getPriorities()).thenReturn(prioritiesPromise);
+        when(prioritiesPromise.get()).thenReturn(Collections.singletonList(priority));
+        when(priority.getName()).thenReturn("Critical");
+        when(issueClient.updateIssue(eq("TEST-123"), any(IssueInput.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute - update priority
+        String result = jiraService.updateIssue("TEST-123", null, null, "Critical", null);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123 updated successfully"));
+        verify(issueClient, times(1)).updateIssue(eq("TEST-123"), any(IssueInput.class));
+    }
+
+    @Test
+    void testShouldUpdateIssueWithDescription() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issueClient.updateIssue(eq("TEST-123"), any(IssueInput.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute - update description
+        String result = jiraService.updateIssue("TEST-123", null, "Updated description", null, null);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123 updated successfully"));
+        verify(issueClient, times(1)).updateIssue(eq("TEST-123"), any(IssueInput.class));
+    }
+
+    @Test
+    void testShouldUpdateIssueWithLabels() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issueClient.updateIssue(eq("TEST-123"), any(IssueInput.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute - update labels
+        String result = jiraService.updateIssue("TEST-123", null, null, null, "label1,label2,label3");
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123 updated successfully"));
+        verify(issueClient, times(1)).updateIssue(eq("TEST-123"), any(IssueInput.class));
+    }
+
+    @Test
+    void testShouldUpdateIssueWithAllFields() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(metadataClient.getPriorities()).thenReturn(prioritiesPromise);
+        when(prioritiesPromise.get()).thenReturn(Collections.singletonList(priority));
+        when(priority.getName()).thenReturn("High");
+        when(issueClient.updateIssue(eq("TEST-123"), any(IssueInput.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute - update all fields
+        String result = jiraService.updateIssue("TEST-123", "New Summary", "New Description", "High", "new-label");
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123 updated successfully"));
+        verify(issueClient, times(1)).updateIssue(eq("TEST-123"), any(IssueInput.class));
+    }
+
+    @Test
+    void testShouldCreateIssueWithoutOptionalFields() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(projectClient.getProject("TEST")).thenReturn(projectPromise);
+        when(projectPromise.get()).thenReturn(project);
+        when(metadataClient.getIssueTypes()).thenReturn(issueTypesPromise);
+        when(issueTypesPromise.get()).thenReturn(Collections.singletonList(issueType));
+        when(issueType.getName()).thenReturn("Task");
+        when(issueClient.createIssue(any(IssueInput.class))).thenReturn(basicIssuePromise);
+        when(basicIssuePromise.get()).thenReturn(basicIssue);
+        when(basicIssue.getKey()).thenReturn("TEST-789");
+
+        // Execute - create issue without priority and labels
+        String result = jiraService.createIssue("TEST", "Task", "Simple Task", null, null, null);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-789"));
+        assertTrue(result.contains("Issue created successfully"));
+        verify(issueClient, times(1)).createIssue(any(IssueInput.class));
+    }
+
+    @Test
+    void testShouldFormatIssueDetailsWithAllFields() throws ExecutionException, InterruptedException {
+        // Setup comprehensive mock issue
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issue.getKey()).thenReturn("TEST-123");
+        when(issue.getSummary()).thenReturn("Comprehensive Test Issue");
+        when(issue.getIssueType()).thenReturn(issueType);
+        when(issueType.getName()).thenReturn("Story");
+        when(issue.getStatus()).thenReturn(status);
+        when(status.getName()).thenReturn("In Progress");
+        when(issue.getPriority()).thenReturn(priority);
+        when(priority.getName()).thenReturn("Medium");
+        when(issue.getReporter()).thenReturn(user);
+        when(user.getDisplayName()).thenReturn("Jane Smith");
+        when(issue.getAssignee()).thenReturn(user);
+        when(issue.getCreationDate()).thenReturn(new org.joda.time.DateTime(2024, 1, 1, 10, 0));
+        when(issue.getUpdateDate()).thenReturn(new org.joda.time.DateTime(2024, 1, 15, 14, 30));
+        when(issue.getLabels()).thenReturn(java.util.Set.of("backend", "api", "urgent"));
+        when(issue.getDescription()).thenReturn("Detailed description of the issue");
+        
+        Comment comment1 = mock(Comment.class);
+        when(comment1.getAuthor()).thenReturn(user);
+        when(comment1.getBody()).thenReturn("First comment");
+        when(comment1.getCreationDate()).thenReturn(new org.joda.time.DateTime(2024, 1, 2, 9, 0));
+        
+        Comment comment2 = mock(Comment.class);
+        when(comment2.getAuthor()).thenReturn(user);
+        when(comment2.getBody()).thenReturn("Second comment");
+        when(comment2.getCreationDate()).thenReturn(new org.joda.time.DateTime(2024, 1, 3, 11, 0));
+        
+        when(issue.getComments()).thenReturn(Arrays.asList(comment1, comment2));
+
+        // Execute
+        String result = jiraService.getIssue("TEST-123");
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123"));
+        assertTrue(result.contains("Comprehensive Test Issue"));
+        assertTrue(result.contains("Story"));
+        assertTrue(result.contains("In Progress"));
+        assertTrue(result.contains("Medium"));
+        assertTrue(result.contains("Jane Smith"));
+        assertTrue(result.contains("backend"));
+        assertTrue(result.contains("api"));
+        assertTrue(result.contains("urgent"));
+        assertTrue(result.contains("Detailed description"));
+        assertTrue(result.contains("First comment"));
+        assertTrue(result.contains("Second comment"));
+    }
+
+    @Test
+    void testShouldFormatIssueDetailsWithMinimalFields() throws ExecutionException, InterruptedException {
+        // Setup minimal mock issue
+        when(issueClient.getIssue("TEST-456")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issue.getKey()).thenReturn("TEST-456");
+        when(issue.getSummary()).thenReturn("Minimal Issue");
+        when(issue.getIssueType()).thenReturn(issueType);
+        when(issueType.getName()).thenReturn("Bug");
+        when(issue.getStatus()).thenReturn(status);
+        when(status.getName()).thenReturn("Open");
+        when(issue.getPriority()).thenReturn(null); // No priority
+        when(issue.getReporter()).thenReturn(null); // No reporter
+        when(issue.getAssignee()).thenReturn(null); // No assignee
+        when(issue.getCreationDate()).thenReturn(null);
+        when(issue.getUpdateDate()).thenReturn(null);
+        when(issue.getLabels()).thenReturn(Collections.emptySet());
+        when(issue.getDescription()).thenReturn(null); // No description
+        when(issue.getComments()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.getIssue("TEST-456");
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-456"));
+        assertTrue(result.contains("Minimal Issue"));
+        assertTrue(result.contains("Bug"));
+        assertTrue(result.contains("Open"));
+    }
+
+    @Test
+    void testShouldTransitionIssueWithComment() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issueClient.getTransitions(issue)).thenReturn(transitionsPromise);
+        when(transitionsPromise.get()).thenReturn(Collections.singletonList(transition));
+        when(transition.getName()).thenReturn("Done");
+        when(transition.getId()).thenReturn(31);
+        when(issueClient.transition(eq(issue), any(TransitionInput.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute with comment
+        String result = jiraService.transitionIssue("TEST-123", "Done", "Completed all tasks");
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123 transitioned to 'Done' successfully"));
+        verify(issueClient, times(1)).transition(eq(issue), any(TransitionInput.class));
+    }
+
+    @Test
+    void testShouldHandleSearchWithNoResults() throws ExecutionException, InterruptedException {
+        // Setup mocks for empty search
+        when(searchClient.searchJql(anyString(), anyInt(), anyInt(), any())).thenReturn(searchResultPromise);
+        when(searchResultPromise.get()).thenReturn(searchResult);
+        when(searchResult.getTotal()).thenReturn(0);
+        when(searchResult.getIssues()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.searchIssues("project = NONEXISTENT", 50);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("0 total issues found") || result.contains("No issues found"));
+        verify(searchClient, times(1)).searchJql("project = NONEXISTENT", 50, 0, null);
+    }
+
+    @Test
+    void testShouldHandleIssueWithNullPriority() throws ExecutionException, InterruptedException {
+        // Setup mock issue without priority
+        when(issueClient.getIssue("TEST-999")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issue.getKey()).thenReturn("TEST-999");
+        when(issue.getSummary()).thenReturn("Issue without priority");
+        when(issue.getIssueType()).thenReturn(issueType);
+        when(issueType.getName()).thenReturn("Task");
+        when(issue.getStatus()).thenReturn(status);
+        when(status.getName()).thenReturn("To Do");
+        when(issue.getPriority()).thenReturn(null);
+        when(issue.getReporter()).thenReturn(user);
+        when(user.getDisplayName()).thenReturn("Test User");
+        when(issue.getAssignee()).thenReturn(null);
+        when(issue.getCreationDate()).thenReturn(null);
+        when(issue.getUpdateDate()).thenReturn(null);
+        when(issue.getLabels()).thenReturn(Collections.emptySet());
+        when(issue.getDescription()).thenReturn("Description");
+        when(issue.getComments()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.getIssue("TEST-999");
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-999"));
+        assertTrue(result.contains("Issue without priority"));
+    }
+
+    @Test
+    void testShouldHandleIssueWithNullAssignee() throws ExecutionException, InterruptedException {
+        // Setup mock issue without assignee
+        when(searchClient.searchJql(anyString(), anyInt(), anyInt(), any())).thenReturn(searchResultPromise);
+        when(searchResultPromise.get()).thenReturn(searchResult);
+        when(searchResult.getTotal()).thenReturn(1);
+        when(searchResult.getIssues()).thenReturn(Collections.singletonList(issue));
+        when(issue.getKey()).thenReturn("TEST-888");
+        when(issue.getSummary()).thenReturn("Unassigned Issue");
+        when(issue.getStatus()).thenReturn(status);
+        when(status.getName()).thenReturn("Open");
+        when(issue.getPriority()).thenReturn(priority);
+        when(priority.getName()).thenReturn("Low");
+        when(issue.getAssignee()).thenReturn(null);
+
+        // Execute
+        String result = jiraService.searchIssues("assignee is EMPTY", 50);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-888"));
+        assertTrue(result.contains("Unassigned") || result.contains("null"));
+    }
+
+    @Test
+    void testShouldCreateIssueWithOnlyDescription() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(projectClient.getProject("TEST")).thenReturn(projectPromise);
+        when(projectPromise.get()).thenReturn(project);
+        when(metadataClient.getIssueTypes()).thenReturn(issueTypesPromise);
+        when(issueTypesPromise.get()).thenReturn(Collections.singletonList(issueType));
+        when(issueType.getName()).thenReturn("Bug");
+        when(issueClient.createIssue(any(IssueInput.class))).thenReturn(basicIssuePromise);
+        when(basicIssuePromise.get()).thenReturn(basicIssue);
+        when(basicIssue.getKey()).thenReturn("TEST-111");
+
+        // Execute - create issue with description but no priority or labels
+        String result = jiraService.createIssue("TEST", "Bug", "Bug Summary", "Bug description here", null, null);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-111"));
+        assertTrue(result.contains("Issue created successfully"));
+        verify(issueClient, times(1)).createIssue(any(IssueInput.class));
+    }
+
+    @Test
+    void testShouldHandleMultipleTransitions() throws ExecutionException, InterruptedException {
+        // Setup mocks with multiple transitions
+        Transition transition1 = mock(Transition.class);
+        when(transition1.getName()).thenReturn("Start Progress");
+        when(transition1.getId()).thenReturn(11);
+        
+        Transition transition2 = mock(Transition.class);
+        when(transition2.getName()).thenReturn("Done");
+        when(transition2.getId()).thenReturn(31);
+        
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issueClient.getTransitions(issue)).thenReturn(transitionsPromise);
+        when(transitionsPromise.get()).thenReturn(Arrays.asList(transition1, transition2));
+        when(issueClient.transition(eq(issue), any(TransitionInput.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute - transition to Done
+        String result = jiraService.transitionIssue("TEST-123", "Done", null);
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("TEST-123 transitioned to 'Done' successfully"));
+        verify(issueClient, times(1)).transition(eq(issue), any(TransitionInput.class));
+    }
+
+    @Test
+    void testShouldHandleEmptyProjectsList() throws ExecutionException, InterruptedException {
+        // Setup mocks for empty projects
+        when(projectClient.getAllProjects()).thenReturn(projectsPromise);
+        when(projectsPromise.get()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.getProjects();
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("Available Projects") || result.contains("No projects"));
+        verify(projectClient, times(1)).getAllProjects();
+    }
+
+    @Test
+    void testShouldHandleEmptyIssueTypesList() throws ExecutionException, InterruptedException {
+        // Setup mocks for empty issue types
+        when(metadataClient.getIssueTypes()).thenReturn(issueTypesPromise);
+        when(issueTypesPromise.get()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.getIssueTypes();
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("Available Issue Types") || result.contains("No issue types"));
+        verify(metadataClient, times(1)).getIssueTypes();
+    }
+
+    @Test
+    void testShouldHandleEmptyPrioritiesList() throws ExecutionException, InterruptedException {
+        // Setup mocks for empty priorities
+        when(metadataClient.getPriorities()).thenReturn(prioritiesPromise);
+        when(prioritiesPromise.get()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.getPriorities();
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("Available Priorities") || result.contains("No priorities"));
+        verify(metadataClient, times(1)).getPriorities();
+    }
+
+    @Test
+    void testShouldHandleEmptyStatusesList() throws ExecutionException, InterruptedException {
+        // Setup mocks for empty statuses
+        when(metadataClient.getStatuses()).thenReturn(statusesPromise);
+        when(statusesPromise.get()).thenReturn(Collections.emptyList());
+
+        // Execute
+        String result = jiraService.getStatuses();
+
+        // Verify
+        assertNotNull(result);
+        assertTrue(result.contains("Available Statuses") || result.contains("No statuses"));
+        verify(metadataClient, times(1)).getStatuses();
+    }
 }
