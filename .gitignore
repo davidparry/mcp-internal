@@ -37,3 +37,4 @@ out/
 .vscode/
 /inspector/logs/
 /logs/
+/.env

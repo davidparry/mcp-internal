@@ -144,4 +144,177 @@ class TerminalServiceTest {
         assertNotNull(resultString);
         assertTrue(resultString.contains("Exit Code"));
     }
+
+    @Test
+    void testValidateCommandWithPath() throws InterruptedException {
+        // Test command with path should extract base command
+        when(mcpConfiguration.getBlockedCommands()).thenReturn(Set.of("rm"));
+        
+        // This should be blocked because it contains 'rm'
+        TerminalResult result = terminalService.executeCommand("/usr/bin/rm file.txt", null, toolContext);
+        
+        assertNotNull(result);
+        assertTrue(result.isError());
+        assertTrue(result.error().contains("blocked") || result.error().contains("security"));
+    }
+
+    @Test
+    void testNullCommand() throws InterruptedException {
+        TerminalResult result = terminalService.executeCommand(null, null, toolContext);
+        
+        assertNotNull(result);
+        assertTrue(result.isError());
+        assertTrue(result.error().contains("empty") || result.error().contains("validation"));
+    }
+
+    @Test
+    void testWhitespaceOnlyCommand() throws InterruptedException {
+        TerminalResult result = terminalService.executeCommand("   ", null, toolContext);
+        
+        assertNotNull(result);
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void testCommandWithCustomTimeout() throws InterruptedException {
+        // Test with a reasonable timeout
+        TerminalResult result = terminalService.executeCommand("echo 'test with timeout'", 5, toolContext);
+        
+        assertNotNull(result);
+        assertFalse(result.isError());
+        assertTrue(result.output().contains("test with timeout"));
+    }
+
+    @Test
+    void testIOExceptionHandling() throws InterruptedException {
+        // Try to execute a command that doesn't exist to trigger IOException path
+        String invalidCommand = "this_command_definitely_does_not_exist_12345";
+        TerminalResult result = terminalService.executeCommand(invalidCommand, null, toolContext);
+        
+        assertNotNull(result);
+        // The result should indicate an error
+        assertTrue(result.isError() || result.exitCode() != 0);
+    }
+
+    @Test
+    void testCommandWithLongOutput() throws InterruptedException {
+        // Test command that produces multiple lines of output
+        String os = System.getProperty("os.name").toLowerCase();
+        String command = os.contains("win") ? "dir" : "ls -la";
+        
+        TerminalResult result = terminalService.executeCommand(command, null, toolContext);
+        
+        assertNotNull(result);
+        assertFalse(result.isError());
+        assertFalse(result.output().isEmpty());
+    }
+
+    @Test
+    void testCommandWithSpecialCharacters() throws InterruptedException {
+        // Test command with special characters
+        TerminalResult result = terminalService.executeCommand("echo 'Hello & World'", null, toolContext);
+        
+        assertNotNull(result);
+        assertFalse(result.isError());
+    }
+
+    @Test
+    void testBlockedCommandCaseInsensitive() throws InterruptedException {
+        when(mcpConfiguration.getBlockedCommands()).thenReturn(Set.of("rm"));
+        
+        // Test uppercase version of blocked command
+        TerminalResult result = terminalService.executeCommand("RM file.txt", null, toolContext);
+        
+        assertNotNull(result);
+        assertTrue(result.isError());
+    }
+
+    @Test
+    void testSuccessfulCommandWithZeroExitCode() throws InterruptedException {
+        TerminalResult result = terminalService.executeCommand("echo success", null, toolContext);
+        
+        assertNotNull(result);
+        assertFalse(result.isError());
+        assertEquals(0, result.exitCode());
+        assertNull(result.errorMessage());
+    }
+
+    @Test
+    void testCommandWithBothStdoutAndStderr() throws InterruptedException {
+        // Create a command that writes to both stdout and stderr
+        String os = System.getProperty("os.name").toLowerCase();
+        String command;
+        if (os.contains("win")) {
+            command = "echo stdout && echo stderr 1>&2";
+        } else {
+            command = "echo 'stdout' && echo 'stderr' >&2";
+        }
+        
+        TerminalResult result = terminalService.executeCommand(command, null, toolContext);
+        
+        assertNotNull(result);
+        // Command should succeed
+        assertFalse(result.isError());
+        // Should have output in stdout
+        assertTrue(result.output().contains("stdout"));
+        // Should have output in stderr
+        assertTrue(result.error().contains("stderr"));
+    }
+
+    @Test
+    void testMultipleSequentialCommands() throws InterruptedException {
+        // Execute multiple commands in sequence
+        TerminalResult result1 = terminalService.executeCommand("echo first", null, toolContext);
+        TerminalResult result2 = terminalService.executeCommand("echo second", null, toolContext);
+        TerminalResult result3 = terminalService.executeCommand("echo third", null, toolContext);
+        
+        assertNotNull(result1);
+        assertNotNull(result2);
+        assertNotNull(result3);
+        
+        assertFalse(result1.isError());
+        assertFalse(result2.isError());
+        assertFalse(result3.isError());
+        
+        assertTrue(result1.output().contains("first"));
+        assertTrue(result2.output().contains("second"));
+        assertTrue(result3.output().contains("third"));
+    }
+
+    @Test
+    void testCommandInDifferentWorkingDirectory() throws InterruptedException, IOException {
+        // Create a subdirectory
+        Path subDir = tempDir.resolve("subdir");
+        Files.createDirectories(subDir);
+        Path fileInSubDir = subDir.resolve("subfile.txt");
+        Files.writeString(fileInSubDir, "content in subdir");
+        
+        // The command should run in tempDir, so it should see the subdir
+        TerminalResult result = terminalService.executeCommand("ls", null, toolContext);
+        
+        assertNotNull(result);
+        assertFalse(result.isError());
+        assertTrue(result.output().contains("subdir"));
+    }
+
+    @Test
+    void testTerminalResultFields() throws InterruptedException {
+        TerminalResult result = terminalService.executeCommand("echo test", null, toolContext);
+        
+        assertNotNull(result);
+        assertNotNull(result.output());
+        assertNotNull(result.error());
+        assertEquals(0, result.exitCode());
+        assertFalse(result.isError());
+    }
+
+    @Test
+    void testErrorResultFields() throws InterruptedException {
+        TerminalResult result = terminalService.executeCommand("ls /nonexistent-path-12345", null, toolContext);
+        
+        assertNotNull(result);
+        assertTrue(result.isError());
+        assertNotEquals(0, result.exitCode());
+        assertNotNull(result.errorMessage());
+    }
 }

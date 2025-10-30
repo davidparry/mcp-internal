@@ -300,7 +300,7 @@ public class GitService {
             " to the remote repository (e.g., 'origin'). Use this to share your local commits with others or backup " +
             "your work to a remote server.")
     public String push(String repositoryPath, String remote, String branch) throws IOException, GitAPIException {
-        return pushInternal(repositoryPath, remote, branch, false);
+        return pushInternal(repositoryPath, remote, branch, true);
     }
 
     @Tool(name = "git_push_force", description = "Force pushes local commits to a remote repository, overwriting " +
