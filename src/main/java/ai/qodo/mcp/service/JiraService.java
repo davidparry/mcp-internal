@@ -396,33 +396,207 @@ public class JiraService {
     private String formatIssueDetails(Issue issue) {
         StringBuilder result = new StringBuilder();
 
+        // Basic fields
         result.append("Issue: ").append(issue.getKey()).append("\n");
         result.append("Summary: ").append(issue.getSummary()).append("\n");
         result.append("Type: ").append(issue.getIssueType().getName()).append("\n");
         result.append("Status: ").append(issue.getStatus().getName()).append("\n");
-        result
-                .append("Priority: ")
-                .append(issue.getPriority() != null ? issue.getPriority().getName() : "None")
-                .append("\n");
-        result
-                .append("Reporter: ")
-                .append(issue.getReporter() != null ? issue.getReporter().getDisplayName() : "Unknown")
-                .append("\n");
-        result
-                .append("Assignee: ")
-                .append(issue.getAssignee() != null ? issue.getAssignee().getDisplayName() : "Unassigned")
-                .append("\n");
+
+        // Priority
+        if (issue.getPriority() != null) {
+            result.append("Priority: ").append(issue.getPriority().getName()).append("\n");
+        }
+
+        // Reporter
+        if (issue.getReporter() != null) {
+            result.append("Reporter: ").append(issue.getReporter().getDisplayName())
+                  .append(" (").append(issue.getReporter().getName()).append(")\n");
+        }
+
+        // Assignee
+        if (issue.getAssignee() != null) {
+            result.append("Assignee: ").append(issue.getAssignee().getDisplayName())
+                  .append(" (").append(issue.getAssignee().getName()).append(")\n");
+        }
+
+        // Resolution
+        if (issue.getResolution() != null) {
+            result.append("Resolution: ").append(issue.getResolution().getName()).append("\n");
+        }
+
+        // Dates
         result.append("Created: ").append(formatDateTime(issue.getCreationDate())).append("\n");
         result.append("Updated: ").append(formatDateTime(issue.getUpdateDate())).append("\n");
 
+        if (issue.getDueDate() != null) {
+            result.append("Due Date: ").append(formatDateTime(issue.getDueDate())).append("\n");
+        }
+
+        // Project
+        if (issue.getProject() != null) {
+            result.append("Project: ").append(issue.getProject().getName())
+                  .append(" (").append(issue.getProject().getKey()).append(")\n");
+        }
+
+        // Labels
         if (issue.getLabels() != null && !issue.getLabels().isEmpty()) {
             result.append("Labels: ").append(String.join(", ", issue.getLabels())).append("\n");
         }
 
+        // Components
+        if (issue.getComponents() != null) {
+            List<BasicComponent> components = StreamSupport
+                    .stream(issue.getComponents().spliterator(), false)
+                    .collect(Collectors.toList());
+            if (!components.isEmpty()) {
+                result.append("Components: ");
+                result.append(components.stream()
+                        .map(BasicComponent::getName)
+                        .collect(Collectors.joining(", ")));
+                result.append("\n");
+            }
+        }
+
+        // Affected Versions
+        if (issue.getAffectedVersions() != null) {
+            List<Version> versions = StreamSupport
+                    .stream(issue.getAffectedVersions().spliterator(), false)
+                    .collect(Collectors.toList());
+            if (!versions.isEmpty()) {
+                result.append("Affects Version/s: ");
+                result.append(versions.stream()
+                        .map(Version::getName)
+                        .collect(Collectors.joining(", ")));
+                result.append("\n");
+            }
+        }
+
+        // Fix Versions
+        if (issue.getFixVersions() != null) {
+            List<Version> fixVersions = StreamSupport
+                    .stream(issue.getFixVersions().spliterator(), false)
+                    .collect(Collectors.toList());
+            if (!fixVersions.isEmpty()) {
+                result.append("Fix Version/s: ");
+                result.append(fixVersions.stream()
+                        .map(Version::getName)
+                        .collect(Collectors.joining(", ")));
+                result.append("\n");
+            }
+        }
+
+        // Votes
+        if (issue.getVotes() != null) {
+            result.append("Votes: ").append(issue.getVotes().getVotes()).append("\n");
+        }
+
+        // Watchers
+        if (issue.getWatchers() != null) {
+            result.append("Watchers: ").append(issue.getWatchers().getNumWatchers()).append("\n");
+        }
+
+        // Time Tracking
+        if (issue.getTimeTracking() != null) {
+            TimeTracking timeTracking = issue.getTimeTracking();
+            if (timeTracking.getOriginalEstimateMinutes() != null) {
+                result.append("Original Estimate: ").append(timeTracking.getOriginalEstimateMinutes()).append(" minutes\n");
+            }
+            if (timeTracking.getRemainingEstimateMinutes() != null) {
+                result.append("Remaining Estimate: ").append(timeTracking.getRemainingEstimateMinutes()).append(" minutes\n");
+            }
+            if (timeTracking.getTimeSpentMinutes() != null) {
+                result.append("Time Spent: ").append(timeTracking.getTimeSpentMinutes()).append(" minutes\n");
+            }
+        }
+
+        // Attachments
+        if (issue.getAttachments() != null) {
+            List<Attachment> attachments = StreamSupport
+                    .stream(issue.getAttachments().spliterator(), false)
+                    .collect(Collectors.toList());
+            if (!attachments.isEmpty()) {
+                result.append("Attachments (").append(attachments.size()).append("):\n");
+                for (Attachment attachment : attachments) {
+                    result.append("  - ").append(attachment.getFilename())
+                          .append(" (").append(attachment.getSize()).append(" bytes, ")
+                          .append("by ").append(attachment.getAuthor() != null ? attachment.getAuthor().getDisplayName() : "Unknown")
+                          .append(")\n");
+                }
+            }
+        }
+
+        // Subtasks - Note: The JIRA API doesn't provide direct subtask access via getSubtasks()
+        // Subtasks are typically accessed through issue links with specific link types
+
+        // Issue Links
+        if (issue.getIssueLinks() != null) {
+            List<IssueLink> issueLinks = StreamSupport
+                    .stream(issue.getIssueLinks().spliterator(), false)
+                    .collect(Collectors.toList());
+            if (!issueLinks.isEmpty()) {
+                result.append("Issue Links (").append(issueLinks.size()).append("):\n");
+                for (IssueLink link : issueLinks) {
+                    if (link.getTargetIssueKey() != null) {
+                        result.append("  - ").append(link.getIssueLinkType().getDescription())
+                              .append(": ").append(link.getTargetIssueKey()).append("\n");
+                    }
+                }
+            }
+        }
+
+        // Worklogs
+        if (issue.getWorklogs() != null) {
+            List<Worklog> worklogs = StreamSupport
+                    .stream(issue.getWorklogs().spliterator(), false)
+                    .collect(Collectors.toList());
+            if (!worklogs.isEmpty()) {
+                result.append("Worklogs (").append(worklogs.size()).append("):\n");
+                for (Worklog worklog : worklogs) {
+                    result.append("  - ").append(worklog.getAuthor().getDisplayName())
+                          .append(" (").append(formatDateTime(worklog.getStartDate())).append("): ")
+                          .append(worklog.getMinutesSpent()).append(" minutes");
+                    if (worklog.getComment() != null && !worklog.getComment().isEmpty()) {
+                        result.append(" - ").append(worklog.getComment());
+                    }
+                    result.append("\n");
+                }
+            }
+        }
+
+        // Description
         if (issue.getDescription() != null && !issue.getDescription().isEmpty()) {
             result.append("\nDescription:\n").append(issue.getDescription()).append("\n");
         }
 
+        // Custom Fields
+        if (issue.getFields() != null) {
+            result.append("\nCustom Fields:\n");
+            for (IssueField field : issue.getFields()) {
+                if (field.getValue() != null) {
+                    String fieldName = field.getName();
+                    Object fieldValue = field.getValue();
+
+                    // Skip standard fields we've already displayed
+                    if (!isStandardField(fieldName)) {
+                        result.append("  ").append(fieldName).append(": ");
+
+                        // Handle different types of field values
+                        if (fieldValue instanceof Iterable) {
+                            List<String> values = StreamSupport
+                                    .stream(((Iterable<?>) fieldValue).spliterator(), false)
+                                    .map(Object::toString)
+                                    .collect(Collectors.toList());
+                            result.append(String.join(", ", values));
+                        } else {
+                            result.append(fieldValue.toString());
+                        }
+                        result.append("\n");
+                    }
+                }
+            }
+        }
+
+        // Comments
         if (issue.getComments() != null) {
             List<Comment> comments = StreamSupport
                     .stream(issue.getComments().spliterator(), false)
@@ -430,21 +604,33 @@ public class JiraService {
             if (!comments.isEmpty()) {
                 result.append("\nComments (").append(comments.size()).append("):\n");
                 for (Comment comment : comments) {
-                    result
-                            .append("  - ")
-                            .append(comment.getAuthor().getDisplayName())
-                            .append(" (")
-                            .append(formatDateTime(comment.getCreationDate()))
-                            .append("): ")
-                            .append(comment.getBody())
-                            .append("\n");
+                    result.append("  - ").append(comment.getAuthor().getDisplayName())
+                          .append(" (").append(formatDateTime(comment.getCreationDate())).append("): ")
+                          .append(comment.getBody())
+                          .append("\n");
                 }
             }
         }
 
-        result.append("\nURL: ").append(mcpConfiguration.getJiraConfiguration().getSiteUrl()).append("/browse/").append(issue.getKey());
+        result.append("\nURL: ").append(mcpConfiguration.getJiraConfiguration().getSiteUrl())
+              .append("/browse/").append(issue.getKey());
 
         return result.toString();
+    }
+
+    /**
+     * Helper method to identify standard fields that should not be displayed in custom fields section.
+     */
+    private boolean isStandardField(String fieldName) {
+        Set<String> standardFields = Set.of(
+            "Summary", "Issue Type", "Status", "Priority", "Reporter", "Assignee",
+            "Resolution", "Created", "Updated", "Due Date", "Project", "Labels",
+            "Components", "Affects Version/s", "Fix Version/s", "Description",
+            "Votes", "Watchers", "Time Tracking", "Original Estimate", "Remaining Estimate",
+            "Time Spent", "Attachments", "Subtasks", "Issue Links", "Worklogs", "Comments",
+            "Key", "Issue key", "Issue id", "Id"
+        );
+        return standardFields.contains(fieldName);
     }
 
     /**
