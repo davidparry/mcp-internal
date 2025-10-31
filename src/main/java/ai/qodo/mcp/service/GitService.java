@@ -296,6 +296,142 @@ public class GitService {
         }
     }
 
+    /**
+     * Checks if the repository has uncommitted changes.
+     */
+    private boolean hasUncommittedChanges(Git git) throws GitAPIException {
+        return !git.status().call().isClean();
+    }
+
+    /**
+     * Formats the git status for clear LLM understanding.
+     */
+    private String formatGitStatus(Status status) {
+        StringBuilder result = new StringBuilder();
+        
+        if (!status.getModified().isEmpty()) {
+            result.append("Modified files (").append(status.getModified().size()).append("):\n");
+            status.getModified().forEach(f -> result.append("  M ").append(f).append("\n"));
+        }
+        
+        if (!status.getAdded().isEmpty()) {
+            result.append("Added files (").append(status.getAdded().size()).append("):\n");
+            status.getAdded().forEach(f -> result.append("  A ").append(f).append("\n"));
+        }
+        
+        if (!status.getUntracked().isEmpty()) {
+            result.append("Untracked files (").append(status.getUntracked().size()).append("):\n");
+            status.getUntracked().forEach(f -> result.append("  ? ").append(f).append("\n"));
+        }
+        
+        if (!status.getRemoved().isEmpty()) {
+            result.append("Removed files (").append(status.getRemoved().size()).append("):\n");
+            status.getRemoved().forEach(f -> result.append("  D ").append(f).append("\n"));
+        }
+        
+        return result.toString();
+    }
+
+    /**
+     * Validates that the repository is ready to push (no uncommitted changes).
+     */
+    private void validateReadyToPush(Git git, String branch) throws GitAPIException {
+        Status status = git.status().call();
+        
+        if (!status.isClean()) {
+            StringBuilder errorMsg = new StringBuilder();
+            errorMsg.append("❌ PUSH FAILED: Working directory has uncommitted changes.\n\n");
+            errorMsg.append("📋 REQUIRED STEPS TO FIX:\n");
+            errorMsg.append("1. Commit your changes first:\n");
+            errorMsg.append("   git_commit(repositoryPath=\"<path>\", message=\"Your commit message\", files=null)\n\n");
+            errorMsg.append("2. Then push to remote:\n");
+            errorMsg.append("   git_push(repositoryPath=\"<path>\", remote=\"origin\", branch=\"").append(branch).append("\")\n\n");
+            
+            errorMsg.append("📁 UNCOMMITTED CHANGES:\n");
+            errorMsg.append(formatGitStatus(status));
+            
+            errorMsg.append("\n💡 TIP: Use files=null in git_commit to commit all changes at once.\n");
+            
+            throw new GitAPIException(errorMsg.toString()) {};
+        }
+    }
+
+    @Tool(name = "git_check_push_readiness", 
+          description = "Checks if the repository is ready to push to remote. Validates that all changes are " +
+                  "committed and provides guidance on next steps. Use this before attempting to push to avoid errors.")
+    public String checkPushReadiness(
+            @ToolParam(description = "Path to the repository") String repositoryPath,
+            @ToolParam(description = "Branch name to check") String branch) throws IOException, GitAPIException {
+        try (Git git = openRepository(repositoryPath)) {
+            Repository repository = git.getRepository();
+            Status status = git.status().call();
+            
+            StringBuilder result = new StringBuilder();
+            result.append("🔍 Push Readiness Check for branch '").append(branch).append("'\n\n");
+            
+            // Check 1: Uncommitted changes
+            if (!status.isClean()) {
+                result.append("❌ NOT READY TO PUSH\n\n");
+                result.append("Reason: You have uncommitted changes.\n\n");
+                result.append("📁 Uncommitted Changes:\n");
+                result.append(formatGitStatus(status));
+                result.append("\n📋 Required Actions:\n");
+                result.append("1. Commit your changes:\n");
+                result.append("   git_commit(repositoryPath=\"").append(repositoryPath).append("\", ");
+                result.append("message=\"Your commit message\", files=null)\n\n");
+                result.append("2. Then check readiness again or push directly:\n");
+                result.append("   git_push(repositoryPath=\"").append(repositoryPath).append("\", ");
+                result.append("remote=\"origin\", branch=\"").append(branch).append("\")\n");
+                return result.toString();
+            }
+            
+            // Check 2: Branch exists
+            Ref localBranchRef = repository.findRef("refs/heads/" + branch);
+            if (localBranchRef == null) {
+                result.append("❌ NOT READY TO PUSH\n\n");
+                result.append("Reason: Local branch '").append(branch).append("' does not exist.\n\n");
+                result.append("📋 Required Actions:\n");
+                result.append("1. Create the branch: git_create_branch(repositoryPath, branchName)\n");
+                result.append("2. Or checkout an existing branch: git_checkout(repositoryPath, branchName)\n");
+                return result.toString();
+            }
+            
+            // Check 3: Compare with remote
+            try {
+                Ref remoteBranchRef = repository.findRef("refs/remotes/origin/" + branch);
+                if (remoteBranchRef != null) {
+                    if (localBranchRef.getObjectId().equals(remoteBranchRef.getObjectId())) {
+                        result.append("ℹ️  ALREADY UP-TO-DATE\n\n");
+                        result.append("Your local branch '").append(branch).append("' is synchronized with 'origin/").append(branch).append("'.\n");
+                        result.append("No new commits to push.\n\n");
+                        result.append("If you expected to have changes:\n");
+                        result.append("- Check status: git_status(repositoryPath)\n");
+                        result.append("- View commits: git_log(repositoryPath, maxCount=5)\n");
+                        return result.toString();
+                    } else {
+                        result.append("✅ READY TO PUSH\n\n");
+                        result.append("Your local branch has new commits that can be pushed.\n\n");
+                        result.append("📤 To push:\n");
+                        result.append("   git_push(repositoryPath=\"").append(repositoryPath).append("\", ");
+                        result.append("remote=\"origin\", branch=\"").append(branch).append("\")\n");
+                        return result.toString();
+                    }
+                } else {
+                    result.append("✅ READY TO PUSH (New Branch)\n\n");
+                    result.append("This will create a new branch '").append(branch).append("' on the remote.\n\n");
+                    result.append("📤 To push:\n");
+                    result.append("   git_push(repositoryPath=\"").append(repositoryPath).append("\", ");
+                    result.append("remote=\"origin\", branch=\"").append(branch).append("\")\n");
+                    return result.toString();
+                }
+            } catch (Exception e) {
+                result.append("⚠️  Could not check remote branch status: ").append(e.getMessage()).append("\n\n");
+                result.append("✅ Local changes are committed. You can attempt to push.\n");
+                return result.toString();
+            }
+        }
+    }
+
     @Tool(name = "git_push", description = "Pushes local commits to a remote repository. Uploads the specified branch" +
             " to the remote repository (e.g., 'origin'). Use this to share your local commits with others or backup " +
             "your work to a remote server.")
@@ -315,10 +451,14 @@ public class GitService {
         try (Git git = openRepository(repositoryPath)) {
             Repository repository = git.getRepository();
             
+            // STEP 1: Validate repository has no uncommitted changes
+            validateReadyToPush(git, branch);
+            
             // Verify the remote exists and get its URL
             String remoteUrl = repository.getConfig().getString("remote", remote, "url");
             if (remoteUrl == null || remoteUrl.isEmpty()) {
-                String errorMsg = "Remote '" + remote + "' is not configured in the repository. Use 'git remote -v' to see configured remotes.";
+                String errorMsg = "❌ ERROR: Remote '" + remote + "' is not configured in the repository.\n\n" +
+                        "Use get_status to see configured remotes or check repository configuration.";
                 logger.error(errorMsg);
                 throw new GitAPIException(errorMsg) {};
             }
@@ -327,7 +467,8 @@ public class GitService {
             // Check if the local branch exists
             Ref localBranchRef = repository.findRef("refs/heads/" + branch);
             if (localBranchRef == null) {
-                String errorMsg = "Local branch '" + branch + "' does not exist. Cannot push non-existent branch.";
+                String errorMsg = "❌ ERROR: Local branch '" + branch + "' does not exist.\n\n" +
+                        "Create the branch first using git_create_branch or checkout an existing branch.";
                 logger.error(errorMsg);
                 throw new GitAPIException(errorMsg) {};
             }
@@ -343,7 +484,15 @@ public class GitService {
                 if (remoteBranchRef != null) {
                     logger.debug("Remote tracking branch exists at commit: {}", remoteBranchRef.getObjectId().getName());
                     if (localBranchRef.getObjectId().equals(remoteBranchRef.getObjectId())) {
-                        logger.warn("Local and remote branches are at the same commit. Nothing to push.");
+                        // Local and remote are at same commit - nothing to push
+                        String infoMsg = "ℹ️  Branch '" + branch + "' is already up-to-date with '" + remote + "/" + branch + "'.\n\n" +
+                                "✅ No new commits to push. The remote repository already has all your local commits.\n\n" +
+                                "If you expected to push changes:\n" +
+                                "1. Verify you committed your changes: git_status(repositoryPath)\n" +
+                                "2. View recent commits: git_log(repositoryPath, maxCount=5)\n" +
+                                "3. If changes are missing, commit them first before pushing";
+                        logger.info(infoMsg);
+                        return infoMsg;
                     }
                 } else {
                     logger.debug("Remote tracking branch does not exist locally. This will be a new branch on remote.");
@@ -362,9 +511,10 @@ public class GitService {
                     logger.debug("Remote '{}' default branch: {}", remote, defaultBranch);
                     
                     if (branch.equals(defaultBranch)) {
-                        String errorMsg = "Cannot push to default branch '" + branch + "' of remote '" + remote + "'. " +
+                        String errorMsg = "❌ ERROR: Cannot push to default branch '" + branch + "' of remote '" + remote + "'.\n\n" +
                                 "Pushing to the default branch (typically 'main' or 'master') is not allowed to prevent " +
-                                "accidental changes to the primary branch. Please push to a feature branch instead.";
+                                "accidental changes to the primary branch.\n\n" +
+                                "Please push to a feature branch instead.";
                         logger.error(errorMsg);
                         throw new GitAPIException(errorMsg) {};
                     }
@@ -437,29 +587,37 @@ public class GitService {
                             logger.debug("Push successful for ref: {}", remoteRefUpdate.getRemoteName());
                             break;
                         case UP_TO_DATE:
-                            // UP_TO_DATE can be misleading - it means Git thinks the remote has this ref
-                            // but it might not actually exist on the remote if a previous push failed
-                            logger.warn("This may be misleading if prior Push failed. Ref reported as up-to-date: {}. If the branch doesn't exist on remote, " +
-                                    "this may indicate stale tracking information. Consider using 'git push --force' " +
-                                    "or deleting the local tracking branch.", remoteRefUpdate.getRemoteName());
+                            // UP_TO_DATE can be misleading - verify working directory is clean
+                            logger.warn("Ref reported as up-to-date: {}", remoteRefUpdate.getRemoteName());
+                            // Note: We already validated no uncommitted changes at the start of this method
+                            // So if we get here, it truly means the branch is up-to-date
+                            resultMessage.append("ℹ️  Branch '").append(branch).append("' is already up-to-date with remote.\n");
                             break;
                         case REJECTED_NONFASTFORWARD:
                         case REJECTED_NODELETE:
                         case REJECTED_REMOTE_CHANGED:
                         case REJECTED_OTHER_REASON:
                             hasErrors = true;
-                            String rejectMsg = "Push rejected: " + remoteRefUpdate.getStatus();
+                            String rejectMsg = "❌ Push rejected: " + remoteRefUpdate.getStatus();
                             if (remoteRefUpdate.getMessage() != null) {
-                                rejectMsg += " - " + remoteRefUpdate.getMessage();
+                                rejectMsg += "\nReason: " + remoteRefUpdate.getMessage();
+                            }
+                            rejectMsg += "\n\n💡 SUGGESTED ACTIONS:\n";
+                            if (remoteRefUpdate.getStatus() == org.eclipse.jgit.transport.RemoteRefUpdate.Status.REJECTED_NONFASTFORWARD) {
+                                rejectMsg += "- Pull latest changes first: git_pull(repositoryPath)\n";
+                                rejectMsg += "- Or use force push if you're sure: git_push_force(repositoryPath, remote, branch)\n";
+                            } else {
+                                rejectMsg += "- Check remote repository permissions\n";
+                                rejectMsg += "- Verify branch protection rules\n";
                             }
                             resultMessage.append(rejectMsg).append("\n");
                             logger.error(rejectMsg);
                             break;
                         default:
                             hasErrors = true;
-                            String failMsg = "Push failed with status: " + remoteRefUpdate.getStatus();
+                            String failMsg = "❌ Push failed with status: " + remoteRefUpdate.getStatus();
                             if (remoteRefUpdate.getMessage() != null) {
-                                failMsg += " - " + remoteRefUpdate.getMessage();
+                                failMsg += "\nDetails: " + remoteRefUpdate.getMessage();
                             }
                             resultMessage.append(failMsg).append("\n");
                             logger.error(failMsg);
@@ -476,8 +634,8 @@ public class GitService {
             }
             
             if (hasErrors) {
-                String errorOutput = "Push failed to " + remote + "/" + branch + "\n" + resultMessage;
-                logger.error("!!! GitForce Push has failed with errors: {}", errorOutput);
+                String errorOutput = "❌ PUSH FAILED to " + remote + "/" + branch + "\n\n" + resultMessage;
+                logger.error("!!! Git Push has failed with errors: {}", errorOutput);
                 throw new GitAPIException(errorOutput) {};
             }
             
@@ -505,7 +663,8 @@ public class GitService {
                 logger.warn("Could not verify push (this is not necessarily an error): {}", e.getMessage());
             }
             
-            String output = "Pushed to " + remote + "/" + branch;
+            String output = "✅ Successfully pushed to " + remote + "/" + branch + "\n\n" +
+                    "Your commits are now available on the remote repository.";
             logger.debug("Response returned {}", output);
             return output;
         }
