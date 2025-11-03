@@ -1,5 +1,6 @@
 package ai.qodo.mcp.config;
 
+import ai.qodo.mcp.service.GitHubService;
 import ai.qodo.mcp.service.GitService;
 import ai.qodo.mcp.service.JiraService;
 import ai.qodo.mcp.service.TerminalService;
@@ -179,7 +180,8 @@ public class McpToolsConfiguration {
     @Primary
     public List<ToolCallback> allMcpTools(Optional<GitService> gitService, Optional<JiraService> jiraService,
                                           Optional<TerminalService> terminalService,
-                                          JiraMcpConfiguration jiraMcpConfiguration) {
+                                          JiraMcpConfiguration jiraMcpConfiguration,
+                                          GithubMcpConfiguration githubMcpConfiguration, Optional<GitHubService> gitHubService) {
 
         List<ToolCallback> allTools = new ArrayList<>();
 
@@ -203,6 +205,15 @@ public class McpToolsConfiguration {
             logger.info("Adding Terminal tools to MCP server");
             allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
 
+        });
+
+        gitHubService.ifPresent(service -> {
+            if (githubMcpConfiguration.isConfigurationValid()) {
+                logger.info("Adding Github tools to MCP server");
+                allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
+            } else {
+                logger.warn("Github service is available but configuration is invalid. Skipping Github tools.");
+            }
         });
 
 

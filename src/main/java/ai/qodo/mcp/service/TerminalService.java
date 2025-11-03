@@ -1,24 +1,19 @@
 package ai.qodo.mcp.service;
 
 import ai.qodo.mcp.config.TerminalMcpConfiguration;
-import ai.qodo.mcp.pojo.TerminalResult;
-import io.modelcontextprotocol.server.McpSyncServerExchange;
+import ai.qodo.mcp.pojo.ToolOutputResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
-import jakarta.annotation.PostConstruct;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.util.*;
 import java.util.concurrent.*;
 
 @Service()
@@ -74,7 +69,7 @@ public class TerminalService {
                   "Dangerous commands (rm, shutdown, etc.) are blocked for security. " +
                   "Returns both stdout and stderr, along with exit code and error status. " +
                   "Use this to run shell commands, build scripts, tests, or any CLI operations.")
-    public TerminalResult executeCommand(
+    public ToolOutputResult executeCommand(
             @ToolParam(description = "The shell command to execute") String command,
             @ToolParam(description = "Optional timeout in seconds (default: 30)") Integer timeoutSeconds,
             ToolContext toolContext) throws InterruptedException {
@@ -87,7 +82,7 @@ public class TerminalService {
             validateCommand(command);
         } catch (SecurityException | IllegalArgumentException e) {
             logger.error("Command validation failed: {}", e.getMessage());
-            return new TerminalResult(
+            return new ToolOutputResult(
                     "",
                     e.getMessage(),
                     -1,
@@ -137,7 +132,7 @@ public class TerminalService {
                 process.destroyForcibly();
                 logger.warn("Command timed out after {} seconds: {}", timeout, command);
                 
-                return new TerminalResult(
+                return new ToolOutputResult(
                         "",
                         "Command execution timed out after " + timeout + " seconds",
                         -1,
@@ -156,11 +151,11 @@ public class TerminalService {
             
             logger.info("Command completed with exit code: {}", exitCode);
             
-            return new TerminalResult(output, error, exitCode, isError, errorMessage);
+            return new ToolOutputResult(output, error, exitCode, isError, errorMessage);
             
         } catch (IOException e) {
             logger.error("Failed to execute command: {}", command, e);
-            return new TerminalResult(
+            return new ToolOutputResult(
                     "",
                     "Failed to execute command: " + e.getMessage(),
                     -1,
@@ -169,7 +164,7 @@ public class TerminalService {
             );
         } catch (TimeoutException e) {
             logger.error("Timeout reading command output: {}", command, e);
-            return new TerminalResult(
+            return new ToolOutputResult(
                     "",
                     "Timeout reading command output",
                     -1,
@@ -178,7 +173,7 @@ public class TerminalService {
             );
         } catch (ExecutionException e) {
             logger.error("Error reading command output: {}", command, e);
-            return new TerminalResult(
+            return new ToolOutputResult(
                     "",
                     "Error reading command output: " + e.getMessage(),
                     -1,

@@ -53,6 +53,7 @@ dependencies {
     implementation "org.eclipse.jgit:org.eclipse.jgit.ssh.apache.agent:${jgitVersion}"
     implementation "org.eclipse.jgit:org.eclipse.jgit:${jgitVersion}"
     implementation 'net.i2p.crypto:eddsa:0.3.0'  // EdDSA support for Ed25519 SSH keys
+    implementation 'org.kohsuke:github-api:1.321'
     developmentOnly 'org.springframework.boot:spring-boot-devtools'
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'

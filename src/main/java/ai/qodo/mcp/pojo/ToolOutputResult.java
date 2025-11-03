@@ -3,7 +3,7 @@ package ai.qodo.mcp.pojo;
 /**
  * Result object for terminal command execution.
  */
-public record TerminalResult(
+public record ToolOutputResult(
         String output,
         String error,
         int exitCode,

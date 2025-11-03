@@ -1,9 +1,8 @@
 package ai.qodo.mcp;
 
 import ai.qodo.mcp.config.TerminalMcpConfiguration;
-import ai.qodo.mcp.pojo.TerminalResult;
+import ai.qodo.mcp.pojo.ToolOutputResult;
 import ai.qodo.mcp.service.TerminalService;
-import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -14,7 +13,6 @@ import org.springframework.ai.chat.model.ToolContext;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -49,7 +47,7 @@ class TerminalServiceTest {
 
     @Test
     void testExecuteSimpleCommand() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("echo Hello World", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("echo Hello World", null, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -60,7 +58,7 @@ class TerminalServiceTest {
     @Test
     void testExecuteCommandWithTimeout() throws InterruptedException {
         // Test with a very short timeout
-        TerminalResult result = terminalService.executeCommand("sleep 10", 1, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("sleep 10", 1, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -71,7 +69,7 @@ class TerminalServiceTest {
     void testBlockedCommand() throws InterruptedException {
         when(mcpConfiguration.getBlockedCommands()).thenReturn(Set.of("rm"));
 
-        TerminalResult result = terminalService.executeCommand("rm -rf /", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("rm -rf /", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -81,7 +79,7 @@ class TerminalServiceTest {
     @Test
     void testCommandWithNonZeroExit() throws InterruptedException {
         // This command should fail on most systems
-        TerminalResult result = terminalService.executeCommand("ls /nonexistent-directory-12345", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("ls /nonexistent-directory-12345", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -95,7 +93,7 @@ class TerminalServiceTest {
         Files.writeString(testFile, "test content");
         
         // List files in the directory
-        TerminalResult result = terminalService.executeCommand("ls", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("ls", null, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -104,7 +102,7 @@ class TerminalServiceTest {
 
     @Test
     void testEmptyCommand() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -116,7 +114,7 @@ class TerminalServiceTest {
         String os = System.getProperty("os.name").toLowerCase();
         String command = os.contains("win") ? "echo Error message 1>&2" : "echo 'Error message' >&2";
         
-        TerminalResult result = terminalService.executeCommand(command, null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand(command, null, toolContext);
         
         assertNotNull(result);
         // The command itself succeeds, but writes to stderr
@@ -129,7 +127,7 @@ class TerminalServiceTest {
         String[] blockedCommands = {"rm test.txt", "sudo ls", "shutdown now", "chmod 777 file"};
         
         for (String command : blockedCommands) {
-            TerminalResult result = terminalService.executeCommand(command, null, toolContext);
+            ToolOutputResult result = terminalService.executeCommand(command, null, toolContext);
             
             assertNotNull(result, "Result should not be null for command: " + command);
             assertTrue(result.isError(), "Command should be blocked: " + command);
@@ -138,7 +136,7 @@ class TerminalServiceTest {
 
     @Test
     void testTerminalResultToString() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("echo test", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("echo test", null, toolContext);
         
         String resultString = result.toString();
         assertNotNull(resultString);
@@ -151,7 +149,7 @@ class TerminalServiceTest {
         when(mcpConfiguration.getBlockedCommands()).thenReturn(Set.of("rm"));
         
         // This should be blocked because it contains 'rm'
-        TerminalResult result = terminalService.executeCommand("/usr/bin/rm file.txt", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("/usr/bin/rm file.txt", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -160,7 +158,7 @@ class TerminalServiceTest {
 
     @Test
     void testNullCommand() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand(null, null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand(null, null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -169,7 +167,7 @@ class TerminalServiceTest {
 
     @Test
     void testWhitespaceOnlyCommand() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("   ", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("   ", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -178,7 +176,7 @@ class TerminalServiceTest {
     @Test
     void testCommandWithCustomTimeout() throws InterruptedException {
         // Test with a reasonable timeout
-        TerminalResult result = terminalService.executeCommand("echo 'test with timeout'", 5, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("echo 'test with timeout'", 5, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -189,7 +187,7 @@ class TerminalServiceTest {
     void testIOExceptionHandling() throws InterruptedException {
         // Try to execute a command that doesn't exist to trigger IOException path
         String invalidCommand = "this_command_definitely_does_not_exist_12345";
-        TerminalResult result = terminalService.executeCommand(invalidCommand, null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand(invalidCommand, null, toolContext);
         
         assertNotNull(result);
         // The result should indicate an error
@@ -202,7 +200,7 @@ class TerminalServiceTest {
         String os = System.getProperty("os.name").toLowerCase();
         String command = os.contains("win") ? "dir" : "ls -la";
         
-        TerminalResult result = terminalService.executeCommand(command, null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand(command, null, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -212,7 +210,7 @@ class TerminalServiceTest {
     @Test
     void testCommandWithSpecialCharacters() throws InterruptedException {
         // Test command with special characters
-        TerminalResult result = terminalService.executeCommand("echo 'Hello & World'", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("echo 'Hello & World'", null, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -223,7 +221,7 @@ class TerminalServiceTest {
         when(mcpConfiguration.getBlockedCommands()).thenReturn(Set.of("rm"));
         
         // Test uppercase version of blocked command
-        TerminalResult result = terminalService.executeCommand("RM file.txt", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("RM file.txt", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());
@@ -231,7 +229,7 @@ class TerminalServiceTest {
 
     @Test
     void testSuccessfulCommandWithZeroExitCode() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("echo success", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("echo success", null, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -250,7 +248,7 @@ class TerminalServiceTest {
             command = "echo 'stdout' && echo 'stderr' >&2";
         }
         
-        TerminalResult result = terminalService.executeCommand(command, null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand(command, null, toolContext);
         
         assertNotNull(result);
         // Command should succeed
@@ -264,9 +262,9 @@ class TerminalServiceTest {
     @Test
     void testMultipleSequentialCommands() throws InterruptedException {
         // Execute multiple commands in sequence
-        TerminalResult result1 = terminalService.executeCommand("echo first", null, toolContext);
-        TerminalResult result2 = terminalService.executeCommand("echo second", null, toolContext);
-        TerminalResult result3 = terminalService.executeCommand("echo third", null, toolContext);
+        ToolOutputResult result1 = terminalService.executeCommand("echo first", null, toolContext);
+        ToolOutputResult result2 = terminalService.executeCommand("echo second", null, toolContext);
+        ToolOutputResult result3 = terminalService.executeCommand("echo third", null, toolContext);
         
         assertNotNull(result1);
         assertNotNull(result2);
@@ -290,7 +288,7 @@ class TerminalServiceTest {
         Files.writeString(fileInSubDir, "content in subdir");
         
         // The command should run in tempDir, so it should see the subdir
-        TerminalResult result = terminalService.executeCommand("ls", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("ls", null, toolContext);
         
         assertNotNull(result);
         assertFalse(result.isError());
@@ -299,7 +297,7 @@ class TerminalServiceTest {
 
     @Test
     void testTerminalResultFields() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("echo test", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("echo test", null, toolContext);
         
         assertNotNull(result);
         assertNotNull(result.output());
@@ -310,7 +308,7 @@ class TerminalServiceTest {
 
     @Test
     void testErrorResultFields() throws InterruptedException {
-        TerminalResult result = terminalService.executeCommand("ls /nonexistent-path-12345", null, toolContext);
+        ToolOutputResult result = terminalService.executeCommand("ls /nonexistent-path-12345", null, toolContext);
         
         assertNotNull(result);
         assertTrue(result.isError());

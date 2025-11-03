@@ -3,13 +3,14 @@
     "git-mcp": {
       "command": "java",
       "args": [
-        "-jar ../build/libs/mcp-internal-1.0.0.jar"
+        "-jar ../build/libs/mcp-internal-1.0.3.jar"
       ],
       "env": {
         "JIRA_MCP_ENABLED": "true",
         "JIRA_SITE_URL": "https://example.net",
         "JIRA_EMAIL": "email",
-        "JIRA_API_TOKEN": "token"
+        "JIRA_API_TOKEN": "token",
+        "GITHUB_API_TOKEN": ""
       }
     }
   }
