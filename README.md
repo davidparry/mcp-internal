@@ -559,7 +559,9 @@ String diff = gitService.diff("/path/to/repo", "HEAD^", "HEAD");
 
 ## License
 
-This is an example implementation for educational purposes.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+See LICENSE.md for the full license text.
 
 ## Contributing
 
