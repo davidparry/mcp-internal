@@ -16,10 +16,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.transport.RemoteConfig;
 import org.eclipse.jgit.transport.URIish;
-import org.kohsuke.github.GHPullRequest;
-import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GitHub;
-import org.kohsuke.github.GitHubBuilder;
+import org.kohsuke.github.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ToolContext;
@@ -41,6 +38,32 @@ public class GitHubService {
 
     public GitHubService(GithubMcpConfiguration githubMcpConfiguration) {
         this.githubMcpConfiguration = githubMcpConfiguration;
+    }
+
+    /**
+     * Validates GitHub API token and connectivity at service initialization.
+     */
+    @PostConstruct
+    public void validateConfiguration() {
+        if (!githubMcpConfiguration.isConfigurationValid()) {
+            logger.error("GitHub configuration is invalid - API token is missing or empty");
+            return;
+        }
+        
+        try {
+            GitHub github = new GitHubBuilder()
+                .withOAuthToken(githubMcpConfiguration.getGithubConfiguration().getApiToken())
+                .build();
+            
+            // Test API access by getting current user
+            GHMyself myself = github.getMyself();
+            logger.info("GitHub API token validated successfully for user: {}", myself.getLogin());
+            logger.debug("API rate limit: {}/{}", github.getRateLimit().getRemaining(), github.getRateLimit().getLimit());
+        } catch (IOException e) {
+            logger.error("GitHub API token validation failed: {}. Please verify your GITHUB_API_TOKEN is valid and has appropriate permissions.", e.getMessage());
+        } catch (Exception e) {
+            logger.error("Unexpected error during GitHub configuration validation: {}", e.getMessage(), e);
+        }
     }
 
     @Tool(name = "github_create_pr", description = "Creates a new Pull Request on GitHub for the current repository. "
@@ -77,11 +100,42 @@ public class GitHubService {
             URIish uri = remoteConfig.getURIs().getFirst();
 
             String url = uri.toString();
+            logger.debug("Git remote URL: {}", url);
+            
             String ownerRepo = parseGitHubUrl(url);
+            logger.info("Parsed GitHub repository: {}", ownerRepo);
+            
             GitHub github = new GitHubBuilder()
                     .withOAuthToken(githubMcpConfiguration.getGithubConfiguration().getApiToken())
                     .build();
-            GHRepository ghRepository = github.getRepository(ownerRepo);
+            
+            // Attempt to get repository with enhanced error handling
+            GHRepository ghRepository;
+            try {
+                ghRepository = github.getRepository(ownerRepo);
+                logger.debug("Successfully accessed GitHub repository: {}", ghRepository.getFullName());
+            } catch (GHFileNotFoundException e) {
+                String errorMsg = String.format(
+                    "GitHub repository '%s' not found (HTTP 404). Please verify:\n" +
+                    "  1. Repository exists at https://github.com/%s\n" +
+                    "  2. Repository name is correct (format: owner/repo-name)\n" +
+                    "  3. GitHub API token has access to this repository\n" +
+                    "  4. For private repositories, ensure token has 'repo' scope\n" +
+                    "  5. Git remote URL is correctly configured: %s",
+                    ownerRepo, ownerRepo, url
+                );
+                logger.error(errorMsg);
+                return new ToolOutputResult("", errorMsg, -1, true, "RepositoryNotFound");
+            } catch (IOException e) {
+                String errorMsg = String.format(
+                    "Failed to access GitHub repository '%s': %s\n" +
+                    "This may be due to network issues, API rate limiting, or permission problems.",
+                    ownerRepo, e.getMessage()
+                );
+                logger.error(errorMsg, e);
+                return new ToolOutputResult("", errorMsg, -1, true, "RepositoryAccessError");
+            }
+            
             logger.debug("Trying to create PR for git repository {} gitHub Repo {} ", repository, ghRepository);
 
             if(targetBranch != null && !targetBranch.isBlank()) {
@@ -106,9 +160,37 @@ public class GitHubService {
             result = new ToolOutputResult("Pull Request created with ID:" + prId + " for parameters: " + params, "",
                                           0, false, "");
 
+        } catch (GHFileNotFoundException ghfnfe) {
+            // This should be caught earlier, but handle it here as well for safety
+            logger.error("Repository not found when creating PR for Title {} sourceBranch: {}, targetBranch: {} - {}", 
+                        title, sourceBranch, mergeToBranch, ghfnfe.getMessage());
+            return new ToolOutputResult("", 
+                "Repository not found. Please verify the repository exists and your API token has access to it: " + ghfnfe.getMessage(), 
+                -1, true, "RepositoryNotFound");
         } catch (IOException ioe) {
-            logger.error("Failed to create PR for for Title {} sourceBranch : {}, targetBranch {} description/body " + "{}" + " ", title, sourceBranch, mergeToBranch, body, ioe);
-            return new ToolOutputResult("", "Failed to create PR: " + ioe.getMessage(), -1, true, "IOException");
+            String errorMessage = ioe.getMessage();
+            String errorType = "IOException";
+            
+            // Provide more specific error messages based on exception details
+            if (errorMessage != null) {
+                if (errorMessage.contains("404")) {
+                    errorType = "NotFound";
+                    errorMessage = "Resource not found (404). This could be the repository, branch, or other resource: " + errorMessage;
+                } else if (errorMessage.contains("401") || errorMessage.contains("Unauthorized")) {
+                    errorType = "Unauthorized";
+                    errorMessage = "Authentication failed (401). Please verify your GitHub API token is valid and has not expired: " + errorMessage;
+                } else if (errorMessage.contains("403") || errorMessage.contains("Forbidden")) {
+                    errorType = "Forbidden";
+                    errorMessage = "Access forbidden (403). Your API token may lack required permissions or rate limit exceeded: " + errorMessage;
+                } else if (errorMessage.contains("422")) {
+                    errorType = "ValidationFailed";
+                    errorMessage = "Validation failed (422). Check that branches exist and PR parameters are valid: " + errorMessage;
+                }
+            }
+            
+            logger.error("Failed to create PR for Title: '{}', sourceBranch: '{}', targetBranch: '{}' - {}", 
+                        title, sourceBranch, mergeToBranch, errorMessage, ioe);
+            return new ToolOutputResult("", "Failed to create PR: " + errorMessage, -1, true, errorType);
         } catch (URISyntaxException urie) {
             logger.error("Failed to create PR for for Title {} sourceBranch : {}, targetBranch {} description/body " + "{}" + " ", title, sourceBranch, mergeToBranch, body, urie);
             return new ToolOutputResult("", "Failed to create PR: " + urie.getMessage(), -1, true,
@@ -119,7 +201,21 @@ public class GitHubService {
     }
 
 
+    /**
+     * Parses a GitHub URL to extract the owner/repo format.
+     * Supports both SSH and HTTPS formats.
+     * 
+     * @param url The git remote URL
+     * @return The repository in "owner/repo-name" format
+     * @throws IllegalArgumentException if URL format is invalid
+     */
     private String parseGitHubUrl(String url) {
+        if (url == null || url.trim().isEmpty()) {
+            throw new IllegalArgumentException("Git remote URL cannot be null or empty");
+        }
+        
+        String originalUrl = url;
+        
         // Handle SSH format: git@github.com:owner/repo.git
         if (url.startsWith("git@github.com:")) {
             url = url.replace("git@github.com:", "");
@@ -128,12 +224,28 @@ public class GitHubService {
         else if (url.contains("github.com/")) {
             url = url.substring(url.indexOf("github.com/") + 11);
         }
+        // Handle git:// protocol
+        else if (url.startsWith("git://github.com/")) {
+            url = url.substring(17);
+        }
+        else {
+            logger.warn("Unrecognized GitHub URL format: {}. Attempting to parse anyway.", originalUrl);
+        }
 
         // Remove .git suffix if present
         if (url.endsWith(".git")) {
             url = url.substring(0, url.length() - 4);
         }
+        
+        // Validate format (should be owner/repo)
+        if (!url.contains("/") || url.split("/").length < 2) {
+            throw new IllegalArgumentException(
+                String.format("Invalid GitHub repository format. Expected 'owner/repo', got: '%s' from URL: '%s'", 
+                             url, originalUrl)
+            );
+        }
 
+        logger.debug("Parsed GitHub URL '{}' to repository identifier '{}'", originalUrl, url);
         return url; // Returns "owner/repo-name"
     }
 
@@ -145,7 +257,7 @@ public class GitHubService {
      * @param startPath The starting directory path to begin the search from
      * @return File object pointing to the .git directory, or null if not found
      */
-    private File findGitDirectory(String startPath) {
+    protected File findGitDirectory(String startPath) {
         if (startPath == null || startPath.isEmpty()) {
             logger.warn("Start path is null or empty, cannot search for .git directory");
             return null;
@@ -174,7 +286,7 @@ public class GitHubService {
      * @param directory The directory to search in
      * @return File object pointing to the .git directory, or null if not found
      */
-    private File searchGitDirectoryRecursive(File directory) {
+    protected File searchGitDirectoryRecursive(File directory) {
         if (directory == null || !directory.exists() || !directory.isDirectory()) {
             return null;
         }
@@ -212,7 +324,7 @@ public class GitHubService {
      * @param startPath The starting directory path to begin the search from
      * @return Fully qualified path to the .git directory, or null if not found
      */
-    private String findGitDirectoryPath(String startPath) {
+    protected String findGitDirectoryPath(String startPath) {
         File gitDir = findGitDirectory(startPath);
         return gitDir != null ? gitDir.getAbsolutePath() : null;
     }
