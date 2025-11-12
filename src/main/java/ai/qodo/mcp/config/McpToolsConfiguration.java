@@ -8,27 +8,23 @@
 
 package ai.qodo.mcp.config;
 
-import ai.qodo.mcp.service.GitHubService;
-import ai.qodo.mcp.service.GitService;
-import ai.qodo.mcp.service.JiraService;
-import ai.qodo.mcp.service.TerminalService;
+import ai.qodo.mcp.service.*;
 import io.modelcontextprotocol.server.McpSyncServerExchange;
 import io.modelcontextprotocol.spec.McpSchema;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.mcp.McpToolUtils;
 import org.springframework.ai.support.ToolCallbacks;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
@@ -46,7 +42,7 @@ import java.util.function.BiConsumer;
 public class McpToolsConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(McpToolsConfiguration.class);
-
+    
     private final CountDownLatch rootsLatch = new CountDownLatch(1);
     private String defaultLocalPath;
     private boolean rootsInitialized = false;
@@ -125,7 +121,7 @@ public class McpToolsConfiguration {
     /**
      * Ensures roots are initialized before proceeding with operations.
      * This method blocks until roots are received or timeout occurs.
-     *
+     * 
      * @param toolContext The tool context containing the MCP exchange
      * @throws InterruptedException if the thread is interrupted while waiting
      */
@@ -190,8 +186,8 @@ public class McpToolsConfiguration {
     public List<ToolCallback> allMcpTools(Optional<GitService> gitService, Optional<JiraService> jiraService,
                                           Optional<TerminalService> terminalService,
                                           JiraMcpConfiguration jiraMcpConfiguration,
-                                          GithubMcpConfiguration githubMcpConfiguration,
-                                          Optional<GitHubService> gitHubService) {
+                                          GithubMcpConfiguration githubMcpConfiguration, Optional<GitHubService> gitHubService,
+                                          Optional<SnykService> snykService, SnykMcpConfiguration snykMcpConfiguration) {
 
         List<ToolCallback> allTools = new ArrayList<>();
 
@@ -223,6 +219,15 @@ public class McpToolsConfiguration {
                 allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
             } else {
                 logger.warn("Github service is available but configuration is invalid. Skipping Github tools.");
+            }
+        });
+
+        snykService.ifPresent(service -> {
+            if (snykMcpConfiguration.isConfigurationValid()) {
+                logger.info("Adding Snyk tools to MCP server");
+                allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
+            } else {
+                logger.warn("Snyk service is available but configuration is invalid. Skipping Snyk tools.");
             }
         });
 

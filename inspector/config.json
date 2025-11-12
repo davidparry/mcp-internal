@@ -7,8 +7,11 @@
       ],
       "env": {
         "JIRA_MCP_ENABLED": "true",
-        "JIRA_SITE_URL": "",
-        "JIRA_EMAIL": ""
+        "JIRA_SITE_URL": "https://example.net",
+        "JIRA_EMAIL": "email",
+        "JIRA_API_TOKEN": "token",
+        "GITHUB_API_TOKEN": "",
+        "SNYK_API_TOKEN": ""
 
       }
     }

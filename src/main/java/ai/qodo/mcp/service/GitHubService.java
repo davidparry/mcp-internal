@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Service()
 @ConditionalOnProperty(name = "mcp.github.enabled", havingValue = "true", matchIfMissing = true)
@@ -64,6 +66,116 @@ public class GitHubService {
         } catch (Exception e) {
             logger.error("Unexpected error during GitHub configuration validation: {}", e.getMessage(), e);
         }
+    }
+
+    @Tool(name = "github_list_repositories", description = "Lists all GitHub repositories accessible to the authenticated user. "
+            + "Returns repository information including the git clone URI (for checkout), title (name), and description. "
+            + "This tool can list repositories owned by the authenticated user, or filter by a specific owner/organization. "
+            + "Use this to discover available repositories, get clone URLs for checking out code, or explore repository details.")
+    public ToolOutputResult listRepositories(
+            @ToolParam(description = "Optional owner/organization name to filter repositories. If not provided, lists all repositories accessible to the authenticated user.", required = false) String owner,
+            @ToolParam(description = "Maximum number of repositories to return. Defaults to 30 if not specified.", required = false) Integer limit) {
+        
+        int maxRepos = (limit != null && limit > 0) ? limit : 30;
+        String params = ParameterStringBuilder.buildParameterString("owner", owner, "limit", String.valueOf(maxRepos));
+        logger.info("Listing GitHub repositories with parameters: {}", params);
+        
+        if (!githubMcpConfiguration.isConfigurationValid()) {
+            String errorMsg = "GitHub configuration is invalid - API token is missing or empty";
+            logger.error(errorMsg);
+            return new ToolOutputResult("", errorMsg, -1, true, "ConfigurationError");
+        }
+        
+        try {
+            GitHub github = new GitHubBuilder()
+                    .withOAuthToken(githubMcpConfiguration.getGithubConfiguration().getApiToken())
+                    .build();
+            
+            List<String> repoInfoList = new ArrayList<>();
+            int count = 0;
+            
+            if (owner != null && !owner.isBlank()) {
+                // List repositories for specific owner/organization
+                logger.debug("Fetching repositories for owner: {}", owner);
+                try {
+                    GHUser user = github.getUser(owner);
+                    PagedIterable<GHRepository> repositories = user.listRepositories();
+                    
+                    for (GHRepository repo : repositories) {
+                        if (count >= maxRepos) break;
+                        repoInfoList.add(formatRepositoryInfo(repo));
+                        count++;
+                    }
+                } catch (GHFileNotFoundException e) {
+                    String errorMsg = String.format("User or organization '%s' not found on GitHub", owner);
+                    logger.error(errorMsg);
+                    return new ToolOutputResult("", errorMsg, -1, true, "UserNotFound");
+                }
+            } else {
+                // List all repositories accessible to authenticated user
+                logger.debug("Fetching all repositories accessible to authenticated user");
+                GHMyself myself = github.getMyself();
+                PagedIterable<GHRepository> repositories = myself.listRepositories();
+                
+                for (GHRepository repo : repositories) {
+                    if (count >= maxRepos) break;
+                    repoInfoList.add(formatRepositoryInfo(repo));
+                    count++;
+                }
+            }
+            
+            if (repoInfoList.isEmpty()) {
+                String message = owner != null ? 
+                    String.format("No repositories found for owner '%s'", owner) : 
+                    "No repositories found for authenticated user";
+                logger.info(message);
+                return new ToolOutputResult(message, "", 0, false, "");
+            }
+            
+            String output = String.join("\n\n", repoInfoList);
+            String summary = String.format("Found %d repositories", count);
+            logger.info("{} for parameters: {}", summary, params);
+            
+            return new ToolOutputResult(output, "", 0, false, "");
+            
+        } catch (IOException e) {
+            String errorMsg = String.format("Failed to list repositories: %s", e.getMessage());
+            logger.error(errorMsg, e);
+            return new ToolOutputResult("", errorMsg, -1, true, "IOException");
+        } catch (Exception e) {
+            String errorMsg = String.format("Unexpected error while listing repositories: %s", e.getMessage());
+            logger.error(errorMsg, e);
+            return new ToolOutputResult("", errorMsg, -1, true, "UnexpectedException");
+        }
+    }
+    
+    /**
+     * Formats repository information into a readable string.
+     * 
+     * @param repo The GitHub repository
+     * @return Formatted string with repository details
+     * @throws IOException if there's an error accessing repository information
+     */
+    private String formatRepositoryInfo(GHRepository repo) throws IOException {
+        StringBuilder info = new StringBuilder();
+        
+        // Repository name (title)
+        info.append("Repository: ").append(repo.getFullName()).append("\n");
+        
+        // Clone URL (git URI)
+        info.append("Clone URL (HTTPS): ").append(repo.getHttpTransportUrl()).append("\n");
+        info.append("Clone URL (SSH): ").append(repo.getSshUrl()).append("\n");
+        
+        // Description
+        String description = repo.getDescription();
+        info.append("Description: ").append(description != null && !description.isBlank() ? description : "No description available").append("\n");
+        
+        // Additional useful information
+        info.append("Default Branch: ").append(repo.getDefaultBranch()).append("\n");
+        info.append("Private: ").append(repo.isPrivate() ? "Yes" : "No").append("\n");
+        info.append("URL: ").append(repo.getHtmlUrl());
+        
+        return info.toString();
     }
 
     @Tool(name = "github_create_pr", description = "Creates a new Pull Request on GitHub for the current repository. "
