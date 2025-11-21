@@ -38,7 +38,7 @@ public class TerminalMcpConfiguration {
     @Value("${mcp.terminal.blocked:}")
     private String blockedCommands;
 
-    @Value("${mcp.terminal.default-timeout-seconds:30}")
+    @Value("${mcp.terminal.default-timeout-seconds:500}")
     private long defaultTimeoutSeconds;
 
     public TerminalMcpConfiguration(McpToolsConfiguration mcpToolsConfiguration) {

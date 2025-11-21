@@ -79,7 +79,7 @@ public class TerminalService {
                   "Use this to run shell commands, build scripts, tests, or any CLI operations.")
     public ToolOutputResult executeCommand(
             @ToolParam(description = "The shell command to execute") String command,
-            @ToolParam(description = "Optional timeout in seconds (default: 30)") Integer timeoutSeconds,
+            @ToolParam(description = "Optional timeout in seconds (default: 180)",required = false) Integer timeoutSeconds,
             ToolContext toolContext) throws InterruptedException {
         
         // Ensure roots are initialized before proceeding

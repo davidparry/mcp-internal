@@ -256,7 +256,7 @@ class JiraServiceTest {
         when(voidPromise.get()).thenReturn(null);
 
         // Execute - update only summary
-        String result = jiraService.updateIssue("TEST-123", "Updated Summary", null, null, null);
+        String result = jiraService.updateIssue("TEST-123", "Updated Summary", null, null, null, null);
 
         // Verify
         assertNotNull(result);
@@ -423,7 +423,7 @@ class JiraServiceTest {
         when(issuePromise.get()).thenReturn(issue);
 
         // Execute with all null parameters
-        String result = jiraService.updateIssue("TEST-123", null, null, null, null);
+        String result = jiraService.updateIssue("TEST-123", null, null, null, null, null);
 
         // Verify
         assertNotNull(result);
@@ -497,7 +497,7 @@ class JiraServiceTest {
         when(voidPromise.get()).thenReturn(null);
 
         // Execute - update priority
-        String result = jiraService.updateIssue("TEST-123", null, null, "Critical", null);
+        String result = jiraService.updateIssue("TEST-123", null, null, "Critical", null, null);
 
         // Verify
         assertNotNull(result);
@@ -514,7 +514,7 @@ class JiraServiceTest {
         when(voidPromise.get()).thenReturn(null);
 
         // Execute - update description
-        String result = jiraService.updateIssue("TEST-123", null, "Updated description", null, null);
+        String result = jiraService.updateIssue("TEST-123", null, "Updated description", null, null, null);
 
         // Verify
         assertNotNull(result);
@@ -531,7 +531,7 @@ class JiraServiceTest {
         when(voidPromise.get()).thenReturn(null);
 
         // Execute - update labels
-        String result = jiraService.updateIssue("TEST-123", null, null, null, "label1,label2,label3");
+        String result = jiraService.updateIssue("TEST-123", null, null, null, "label1,label2,label3", null);
 
         // Verify
         assertNotNull(result);
@@ -551,7 +551,7 @@ class JiraServiceTest {
         when(voidPromise.get()).thenReturn(null);
 
         // Execute - update all fields
-        String result = jiraService.updateIssue("TEST-123", "New Summary", "New Description", "High", "new-label");
+        String result = jiraService.updateIssue("TEST-123", "New Summary", "New Description", "High", "new-label", null);
 
         // Verify
         assertNotNull(result);
