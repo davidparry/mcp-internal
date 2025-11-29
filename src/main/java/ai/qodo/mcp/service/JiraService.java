@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2025 Qodo
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 package ai.qodo.mcp.service;
 
 import ai.qodo.mcp.config.JiraConfiguration;
@@ -179,16 +187,15 @@ public class JiraService {
     }
 
     @Tool(name = "jira_update_issue", description = "Updates an existing Jira issue. Can update summary, " +
-            "description, priority, labels, and other fields. Use this to modify issue details without " + "changing " +
+            "description, priority, labels, assignee, and other fields. Use this to modify issue details without " + "changing " +
             "its status.")
     public String updateIssue(@ToolParam(description = "The issue key to update (e.g., 'PROJ-123')") String issueKey,
-                              @ToolParam(description = "New summary/title (optional)") String summary,
-                              @ToolParam(description = "New description (optional)") String description,
-                              @ToolParam(description = "New priority (optional)") String priority,
-                              @ToolParam(description = "Comma-separated list of labels to set (optional)") String labels) throws ExecutionException, InterruptedException {
+                              @ToolParam(description = "New summary/title (optional)",required = false) String summary,
+                              @ToolParam(description = "New description (optional)",required = false) String description,
+                              @ToolParam(description = "New priority (optional)",required = false) String priority,
+                              @ToolParam(description = "Comma-separated list of labels to set (optional)",required = false) String labels,
+                              @ToolParam(description = "Username or email of the assignee (optional, ore use an empty string to unassign)",required = false) String assignee) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
-
-        Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
 
         IssueInputBuilder updateBuilder = new IssueInputBuilder();
         boolean hasUpdates = false;
@@ -218,6 +225,17 @@ public class JiraService {
         if (labels != null && !labels.isEmpty()) {
             Set<String> labelSet = new HashSet<>(Arrays.asList(labels.split(",")));
             updateBuilder.setFieldValue("labels", labelSet);
+            hasUpdates = true;
+        }
+
+        if (assignee != null) {
+            User user = null;
+            if (!assignee.isEmpty()) {
+                // Try to find the user
+                user = jiraRestClient.getUserClient().getUser(assignee).get();
+
+            }
+            updateBuilder.setAssignee(user);
             hasUpdates = true;
         }
 
@@ -387,6 +405,49 @@ public class JiraService {
                     .append("\n\n");
         }
 
+        return result.toString();
+    }
+
+    @Tool(name = "jira_get_user_by_account_id", description = "Retrieves detailed information about a Jira user by their account ID. " +
+            "Returns user details including display name, email address, account ID, and active status. " +
+            "Use this to get information about a specific user in the Jira instance.")
+    public String getUserByAccountId(
+            @ToolParam(description = "The account ID of the user to retrieve") String accountId) throws ExecutionException, InterruptedException {
+        ensureClientInitialized();
+
+        User user = jiraRestClient.getUserClient().getUser(accountId).get();
+
+        return formatUserDetails(user);
+    }
+
+    /**
+     * Formats user details for display.
+     */
+    private String formatUserDetails(User user) {
+        StringBuilder result = new StringBuilder();
+        
+        result.append("User Details:\n\n");
+        result.append("Display Name: ").append(user.getDisplayName()).append("\n");
+        result.append("Account ID: ").append(user.getName()).append("\n");
+        
+        if (user.getEmailAddress() != null && !user.getEmailAddress().isEmpty()) {
+            result.append("Email: ").append(user.getEmailAddress()).append("\n");
+        }
+        
+        result.append("Active: ").append(user.isActive()).append("\n");
+        
+        if (user.getSelf() != null) {
+            result.append("Profile URL: ").append(user.getSelf()).append("\n");
+        }
+        
+        if (user.getAvatarUri() != null) {
+            result.append("Avatar URL: ").append(user.getAvatarUri()).append("\n");
+        }
+        
+        if (user.getTimezone() != null && !user.getTimezone().isEmpty()) {
+            result.append("Timezone: ").append(user.getTimezone()).append("\n");
+        }
+        
         return result.toString();
     }
 

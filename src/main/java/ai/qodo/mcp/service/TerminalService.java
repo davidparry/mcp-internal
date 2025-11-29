@@ -1,3 +1,11 @@
+/*
+ * Copyright (C) 2025 Qodo
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ */
+
 package ai.qodo.mcp.service;
 
 import ai.qodo.mcp.config.TerminalMcpConfiguration;
@@ -71,7 +79,7 @@ public class TerminalService {
                   "Use this to run shell commands, build scripts, tests, or any CLI operations.")
     public ToolOutputResult executeCommand(
             @ToolParam(description = "The shell command to execute") String command,
-            @ToolParam(description = "Optional timeout in seconds (default: 30)") Integer timeoutSeconds,
+            @ToolParam(description = "Optional timeout in seconds (default: 180)",required = false) Integer timeoutSeconds,
             ToolContext toolContext) throws InterruptedException {
         
         // Ensure roots are initialized before proceeding

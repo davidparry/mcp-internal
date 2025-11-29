@@ -549,6 +549,116 @@ String status = gitService.getStatus("/path/to/repo");
 String diff = gitService.diff("/path/to/repo", "HEAD^", "HEAD");
 ```
 
+## GitHub Service
+
+The `GitHubService` provides GitHub Pull Request creation functionality with comprehensive error handling and validation.
+
+### Features
+
+- **Automatic Repository Detection**: Extracts repository information from git remote URL
+- **Configuration Validation**: Validates GitHub API token at startup
+- **Enhanced Error Handling**: Provides detailed error messages for common issues
+- **Multiple URL Format Support**: Handles SSH, HTTPS, and git:// protocols
+- **Rate Limit Monitoring**: Logs API rate limit information
+- **Branch Detection**: Automatically uses repository default branch if not specified
+
+### Configuration
+
+Set your GitHub API token in `application.properties` or via environment variable:
+
+```properties
+# GitHub MCP Configuration
+mcp.github.enabled=${GITHUB_MCP_ENABLED:true}
+mcp.github.api-token=${GITHUB_API_TOKEN}
+```
+
+Set via environment variable:
+```bash
+export GITHUB_API_TOKEN="ghp_your_token_here"
+```
+
+### Required API Token Scopes
+
+- **Public repositories**: `public_repo` scope
+- **Private repositories**: `repo` scope (full control)
+
+Generate a token at: https://github.com/settings/tokens
+
+### GitHubService Methods
+
+#### `createPullRequest(String body, String title, String sourceBranch, String targetBranch, ToolContext toolContext)`
+Creates a new Pull Request on GitHub for the current repository.
+
+**Behavior:**
+- Automatically detects repository from git remote URL
+- Uses repository default branch if targetBranch is not specified
+- Validates repository access before creating PR
+- Provides detailed error messages for troubleshooting
+
+**Parameters:**
+- `body`: The detailed description of the Pull Request
+- `title`: The title of the Pull Request
+- `sourceBranch`: The source branch (feature branch)
+- `targetBranch`: The target branch (optional, defaults to repository default branch)
+- `toolContext`: The tool context for MCP integration
+
+**Returns:** `ToolOutputResult` containing:
+- Success: PR ID and confirmation message
+- Error: Detailed error message with troubleshooting steps
+
+**Example:**
+```java
+@Autowired
+private GitHubService gitHubService;
+
+ToolOutputResult result = gitHubService.createPullRequest(
+    "This PR adds feature X with the following changes:\n- Added new API endpoint\n- Updated documentation",
+    "Add Feature X",
+    "feature/add-x",
+    "main",  // or null to use default branch
+    toolContext
+);
+
+if (!result.isError()) {
+    System.out.println("PR created: " + result.getOutput());
+} else {
+    System.err.println("Failed to create PR: " + result.getError());
+}
+```
+
+### Error Handling
+
+The service provides specific error messages for common issues:
+
+1. **Repository Not Found (404)**
+   - Repository doesn't exist or no access
+   - Provides verification checklist
+
+2. **Unauthorized (401)**
+   - Invalid or expired API token
+   - Suggests token regeneration
+
+3. **Forbidden (403)**
+   - Insufficient permissions or rate limit exceeded
+   - Suggests checking token scopes
+
+4. **Validation Failed (422)**
+   - Invalid PR parameters (e.g., branch doesn't exist)
+   - Suggests verifying branch existence
+
+### Troubleshooting
+
+For detailed troubleshooting guidance, see [GITHUB_TROUBLESHOOTING.md](GITHUB_TROUBLESHOOTING.md).
+
+Common issues:
+- Repository not found (404)
+- Invalid API token
+- Insufficient permissions
+- Branch doesn't exist
+- Rate limiting
+
+---
+
 ## Troubleshooting
 
 ### Common Issues
@@ -556,10 +666,13 @@ String diff = gitService.diff("/path/to/repo", "HEAD^", "HEAD");
 1. **Repository not found**: Ensure the repository path includes the `.git` directory or is the root of a Git repository
 2. **Authentication errors**: For private repositories, you may need to configure Git credentials
 3. **Permission errors**: Ensure the application has read/write permissions to the repository directory
+4. **GitHub 404 errors**: See [GITHUB_TROUBLESHOOTING.md](GITHUB_TROUBLESHOOTING.md) for detailed guidance
 
 ## License
 
-This is an example implementation for educational purposes.
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
+
+See LICENSE.md for the full license text.
 
 ## Contributing
 
