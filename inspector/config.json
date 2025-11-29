@@ -10,8 +10,7 @@
         "JIRA_SITE_URL": "",
         "JIRA_EMAIL": "",
         "JIRA_API_TOKEN": "",
-        "GITHUB_API_TOKEN": "",
-        "SNYK_API_TOKEN": ""
+        "GITHUB_API_TOKEN": ""
 
       }
     }
