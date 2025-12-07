@@ -186,8 +186,7 @@ public class McpToolsConfiguration {
     public List<ToolCallback> allMcpTools(Optional<GitService> gitService, Optional<JiraService> jiraService,
                                           Optional<TerminalService> terminalService,
                                           JiraMcpConfiguration jiraMcpConfiguration,
-                                          GithubMcpConfiguration githubMcpConfiguration, Optional<GitHubService> gitHubService,
-                                          Optional<SnykService> snykService, SnykMcpConfiguration snykMcpConfiguration) {
+                                          GithubMcpConfiguration githubMcpConfiguration, Optional<GitHubService> gitHubService) {
 
         List<ToolCallback> allTools = new ArrayList<>();
 
@@ -219,15 +218,6 @@ public class McpToolsConfiguration {
                 allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
             } else {
                 logger.warn("Github service is available but configuration is invalid. Skipping Github tools.");
-            }
-        });
-
-        snykService.ifPresent(service -> {
-            if (snykMcpConfiguration.isConfigurationValid()) {
-                logger.info("Adding Snyk tools to MCP server");
-                allTools.addAll(Arrays.asList(ToolCallbacks.from(service)));
-            } else {
-                logger.warn("Snyk service is available but configuration is invalid. Skipping Snyk tools.");
             }
         });
 
