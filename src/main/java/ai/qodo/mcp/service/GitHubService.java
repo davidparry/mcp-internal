@@ -203,11 +203,22 @@ public class GitHubService {
         String mergeToBranch = "main";
         ToolOutputResult result;
         FileRepositoryBuilder builder = new FileRepositoryBuilder();
+        
+        File gitDir = findGitDirectory(this.githubMcpConfiguration.getDefaultLocalPath());
+        if (gitDir == null) {
+            String errorMsg = String.format("Could not find .git directory starting from path: %s", 
+                this.githubMcpConfiguration.getDefaultLocalPath());
+            logger.error(errorMsg);
+            return new ToolOutputResult("", errorMsg, -1, true, "GitDirectoryNotFound");
+        }
+        logger.debug("Using .git directory: {}", gitDir.getAbsolutePath());
+        
         try (Repository repository = builder
-                .setGitDir(findGitDirectory(this.githubMcpConfiguration.getDefaultLocalPath()))
+                .setGitDir(gitDir)
                 .readEnvironment()
                 .findGitDir()
                 .build()) {
+            logger.debug("Successfully opened git repository: {}", repository.getDirectory());
             RemoteConfig remoteConfig = new RemoteConfig(repository.getConfig(), "origin");
             URIish uri = remoteConfig.getURIs().getFirst();
 
@@ -267,9 +278,30 @@ public class GitHubService {
             }
             logger.info("Creating PR from '{}' to '{}'", sourceBranch, mergeToBranch);
 
+            // Check if a PR already exists for this source branch to target branch
+            GHPullRequest existingPr = findExistingPullRequest(ghRepository, sourceBranch, mergeToBranch);
+            if (existingPr != null) {
+                logger.info("Found existing PR #{} for branch '{}' to '{}': {}", 
+                           existingPr.getNumber(), sourceBranch, mergeToBranch, existingPr.getHtmlUrl());
+                result = new ToolOutputResult(
+                    String.format("A Pull Request already exists for branch '%s' to '%s'.\n" +
+                                  "PR #%d: %s\n" +
+                                  "Title: %s\n" +
+                                  "State: %s\n" +
+                                  "URL: %s",
+                                  sourceBranch, mergeToBranch,
+                                  existingPr.getNumber(),
+                                  existingPr.getTitle(),
+                                  existingPr.getTitle(),
+                                  existingPr.getState().name(),
+                                  existingPr.getHtmlUrl()),
+                    "", 0, false, "");
+                return result;
+            }
+
             GHPullRequest pr = ghRepository.createPullRequest(title, sourceBranch, mergeToBranch, body);
             long prId = pr.getId();
-            result = new ToolOutputResult("Pull Request created with ID:" + prId + " for parameters: " + params, "",
+            result = new ToolOutputResult("Pull Request created with ID:" + prId + " for parameters: " + params + "\nURL: " + pr.getHtmlUrl(), "",
                                           0, false, "");
 
         } catch (GHFileNotFoundException ghfnfe) {
@@ -307,11 +339,68 @@ public class GitHubService {
             logger.error("Failed to create PR for for Title {} sourceBranch : {}, targetBranch {} description/body " + "{}" + " ", title, sourceBranch, mergeToBranch, body, urie);
             return new ToolOutputResult("", "Failed to create PR: " + urie.getMessage(), -1, true,
                                         "URISyntaxException");
+        } catch (Exception e) {
+            // Catch-all for any unexpected exceptions to ensure proper error reporting
+            String errorMsg = String.format("Unexpected error while creating PR for Title: '%s', sourceBranch: '%s', targetBranch: '%s' - %s: %s",
+                title, sourceBranch, mergeToBranch, e.getClass().getSimpleName(), e.getMessage());
+            logger.error(errorMsg, e);
+            return new ToolOutputResult("", errorMsg, -1, true, "UnexpectedException");
         }
 
         return result;
     }
 
+
+    /**
+     * Finds an existing pull request for the given source and target branches.
+     * Searches for open PRs first, then checks closed/merged PRs if no open PR is found.
+     *
+     * @param repository The GitHub repository to search in
+     * @param sourceBranch The source branch (head) of the PR
+     * @param targetBranch The target branch (base) of the PR
+     * @return The existing GHPullRequest if found, null otherwise
+     */
+    private GHPullRequest findExistingPullRequest(GHRepository repository, String sourceBranch, String targetBranch) {
+        try {
+            // First, search for open PRs with matching head and base branches
+            List<GHPullRequest> openPrs = repository.queryPullRequests()
+                    .state(GHIssueState.OPEN)
+                    .head(sourceBranch)
+                    .base(targetBranch)
+                    .list()
+                    .toList();
+            
+            if (!openPrs.isEmpty()) {
+                logger.debug("Found {} open PR(s) for branch '{}' to '{}'", openPrs.size(), sourceBranch, targetBranch);
+                return openPrs.get(0); // Return the first matching open PR
+            }
+            
+            // If no open PR found, also check for the branch without owner prefix
+            // GitHub API sometimes requires the head to be in format "owner:branch"
+            String repoOwner = repository.getOwnerName();
+            String headWithOwner = repoOwner + ":" + sourceBranch;
+            
+            List<GHPullRequest> openPrsWithOwner = repository.queryPullRequests()
+                    .state(GHIssueState.OPEN)
+                    .head(headWithOwner)
+                    .base(targetBranch)
+                    .list()
+                    .toList();
+            
+            if (!openPrsWithOwner.isEmpty()) {
+                logger.debug("Found {} open PR(s) for branch '{}' (with owner prefix) to '{}'", 
+                            openPrsWithOwner.size(), headWithOwner, targetBranch);
+                return openPrsWithOwner.get(0);
+            }
+            
+            logger.debug("No existing open PR found for branch '{}' to '{}'", sourceBranch, targetBranch);
+            return null;
+            
+        } catch (IOException e) {
+            logger.warn("Error while searching for existing PRs: {}. Proceeding with PR creation.", e.getMessage());
+            return null;
+        }
+    }
 
     /**
      * Parses a GitHub URL to extract the owner/repo format.

@@ -280,10 +280,15 @@ public class JiraService {
     }
 
     @Tool(name = "jira_add_comment", description = "Adds a comment to a Jira issue. Use this to provide " + "updates," +
-            " ask questions, or document information related to an issue.")
+            " ask questions, or document information related to an issue. A non-empty comment text is required.")
     public String addComment(@ToolParam(description = "The issue key (e.g., 'PROJ-123')") String issueKey,
-                             @ToolParam(description = "Comment text to add") String commentText) throws ExecutionException, InterruptedException {
+                             @ToolParam(description = "Comment text to add - must not be empty") String commentText) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
+
+        // Validate that comment text is not null or empty
+        if (commentText == null || commentText.trim().isEmpty()) {
+            throw new IllegalArgumentException("Comment body cannot be empty. You must always provide a non-empty comment text when adding a comment to a Jira issue.");
+        }
 
         Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
 
