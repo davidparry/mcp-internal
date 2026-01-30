@@ -6,14 +6,6 @@
         "-jar ../build/libs/mcp-internal-1.0.3.jar"
       ],
       "env": {
-        "JIRA_MCP_ENABLED": "true",
-        "JIRA_SITE_URL": "https://qodo-confluence.atlassian.net",
-        "JIRA_EMAIL": "qodo.jira@davidparry.com",
-        "JIRA_API_TOKEN": "",
-        "GITHUB_API_TOKEN": "",
-        "SNYK_TOKEN": "",
-        "AZURE_DEVOPS_ORGANIZATION_URL": "https://dev.azure.com/davidp0219/",
-        "AZURE_DEVOPS_PAT": ""
 
       }
     }
