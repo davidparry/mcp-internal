@@ -99,8 +99,7 @@ public class JiraService {
     }
 
     @Tool(name = "jira_get_issue", description = "Retrieves detailed information about a specific Jira issue. " +
-            "Returns issue details including summary, description, status, assignee, reporter, priority, " + "issue " +
-            "type, and all custom fields. Use this to get comprehensive information about a single issue.")
+            "Returns issue details including summary, description, status, assignee, reporter, priority, " + "issue " + "type, and all custom fields. Use this to get comprehensive information about a single issue.")
     public String getIssue(
             @ToolParam(description = "The issue key (e.g., 'PROJ-123')") String issueKey) throws ExecutionException,
             InterruptedException {
@@ -132,9 +131,8 @@ public class JiraService {
         return result.toString();
     }
 
-    @Tool(name = "jira_create_issue", description = "Creates a new Jira issue in the specified project. " + "Requires" +
-            " project key, issue type, and summary at minimum. Can optionally include description, " + "priority, " +
-            "labels, and other fields. Use this to create new tasks, bugs, stories, or other issue types.")
+    @Tool(name = "jira_create_issue", description = "Creates a new Jira issue in the specified project. " + "Requires"
+            + " project key, issue type, and summary at minimum. Can optionally include description, " + "priority, " + "labels, and other fields. Use this to create new tasks, bugs, stories, or other issue types.")
     public String createIssue(@ToolParam(description = "Project key where the issue will be created") String projectKey,
                               @ToolParam(description = "Issue type (e.g., 'Bug', 'Task', 'Story')") String issueType,
                               @ToolParam(description = "Issue summary/title") String summary,
@@ -182,19 +180,22 @@ public class JiraService {
         IssueInput issueInput = issueBuilder.build();
         BasicIssue createdIssue = jiraRestClient.getIssueClient().createIssue(issueInput).get();
 
-        return "Issue created successfully: " + createdIssue.getKey() + "\nURL: " + mcpConfiguration.getJiraConfiguration().getSiteUrl() +
-                "/browse/" + createdIssue.getKey();
+        return "Issue created successfully: " + createdIssue.getKey() + "\nURL: " + mcpConfiguration
+                .getJiraConfiguration()
+                .getSiteUrl() + "/browse/" + createdIssue.getKey();
     }
 
     @Tool(name = "jira_update_issue", description = "Updates an existing Jira issue. Can update summary, " +
-            "description, priority, labels, assignee, and other fields. Use this to modify issue details without " + "changing " +
-            "its status.")
+            "description, priority, labels, assignee, and other fields. Use this to modify issue details without " +
+            "changing " + "its status.")
     public String updateIssue(@ToolParam(description = "The issue key to update (e.g., 'PROJ-123')") String issueKey,
-                              @ToolParam(description = "New summary/title (optional)",required = false) String summary,
-                              @ToolParam(description = "New description (optional)",required = false) String description,
-                              @ToolParam(description = "New priority (optional)",required = false) String priority,
-                              @ToolParam(description = "Comma-separated list of labels to set (optional)",required = false) String labels,
-                              @ToolParam(description = "Username or email of the assignee (optional, ore use an empty string to unassign)",required = false) String assignee) throws ExecutionException, InterruptedException {
+                              @ToolParam(description = "New summary/title (optional)", required = false) String summary,
+                              @ToolParam(description = "New description (optional)", required = false) String description,
+                              @ToolParam(description = "New priority (optional)", required = false) String priority,
+                              @ToolParam(description = "Comma-separated list of labels to set (optional)", required =
+                                      false) String labels,
+                              @ToolParam(description = "Username or email of the assignee (optional, ore use an " +
+                                      "empty" + " string to unassign)", required = false) String assignee) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
         IssueInputBuilder updateBuilder = new IssueInputBuilder();
@@ -249,9 +250,9 @@ public class JiraService {
         return "Issue " + issueKey + " updated successfully";
     }
 
-    @Tool(name = "jira_transition_issue", description = "Transitions a Jira issue to a different status. " + "Use " +
-            "this to move issues through workflow states like 'To Do', 'In Progress', 'Done', etc. " + "The available" +
-            " transitions depend on the issue's current status and workflow configuration.")
+    @Tool(name = "jira_transition_issue", description =
+            "Transitions a Jira issue to a different status. " + "Use " + "this to move issues through workflow " +
+                    "states like 'To Do', 'In Progress', 'Done', etc. " + "The available" + " transitions depend on " + "the issue's current status and workflow configuration.")
     public String transitionIssue(@ToolParam(description = "The issue key (e.g., 'PROJ-123')") String issueKey,
                                   @ToolParam(description = "Target status name (e.g., 'In Progress', 'Done')") String targetStatus,
                                   @ToolParam(description = "Optional comment to add with the transition") String comment) throws ExecutionException, InterruptedException {
@@ -265,8 +266,7 @@ public class JiraService {
                 .stream(transitions.spliterator(), false)
                 .filter(t -> t.getName().equalsIgnoreCase(targetStatus))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Transition to '" + targetStatus + "' not available " +
-                                                                        "from current status"));
+                .orElseThrow(() -> new IllegalArgumentException("Transition to '" + targetStatus + "' not available " + "from current status"));
 
         TransitionInput transitionInput = new TransitionInput(targetTransition.getId());
 
@@ -279,15 +279,17 @@ public class JiraService {
         return "Issue " + issueKey + " transitioned to '" + targetStatus + "' successfully";
     }
 
-    @Tool(name = "jira_add_comment", description = "Adds a comment to a Jira issue. Use this to provide " + "updates," +
-            " ask questions, or document information related to an issue. A non-empty comment text is required.")
-    public String addComment(@ToolParam(description = "The issue key (e.g., 'PROJ-123')") String issueKey,
-                             @ToolParam(description = "Comment text to add - must not be empty") String commentText) throws ExecutionException, InterruptedException {
+    @Tool(name = "jira_add_comment", description = "Adds a comment to a Jira issue. Use this to provide " + "updates,"
+            + " ask questions, or document information related to an issue. A non-empty comment text is required.")
+    public String addComment(
+            @ToolParam(description = "The issue key (e.g., 'PROJ-123')", required = true) String issueKey,
+            @ToolParam(description = "Comment text to add - must not be empty", required = true) String commentText) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
         // Validate that comment text is not null or empty
         if (commentText == null || commentText.trim().isEmpty()) {
-            throw new IllegalArgumentException("Comment body cannot be empty. You must always provide a non-empty comment text when adding a comment to a Jira issue.");
+            logger.error("Comment for issueKey {} is null or empty!!", issueKey);
+            throw new IllegalArgumentException("Comment body cannot be empty. You must always provide a non-empty " + "comment text when adding a comment to a Jira issue.");
         }
 
         Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
@@ -299,8 +301,8 @@ public class JiraService {
         return "Comment added to issue " + issueKey + " successfully";
     }
 
-    @Tool(name = "jira_assign_issue", description = "Assigns or reassigns a Jira issue to a specific user. " + "Use " +
-            "this to change the assignee of an issue. Pass null or empty string to unassign.")
+    @Tool(name = "jira_assign_issue", description =
+            "Assigns or reassigns a Jira issue to a specific user. " + "Use " + "this to change the assignee of an " + "issue. Pass null or empty string to unassign.")
     public String assignIssue(@ToolParam(description = "The issue key (e.g., 'PROJ-123')") String issueKey,
                               @ToolParam(description = "Username or email of the assignee (null to unassign)") String assignee) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
@@ -392,8 +394,8 @@ public class JiraService {
         return result.toString();
     }
 
-    @Tool(name = "jira_get_statuses", description = "Lists all available statuses in the Jira instance. " + "Use this" +
-            " to see what status values issues can have.")
+    @Tool(name = "jira_get_statuses", description = "Lists all available statuses in the Jira instance. " + "Use " +
+            "this" + " to see what status values issues can have.")
     public String getStatuses() throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
@@ -413,9 +415,10 @@ public class JiraService {
         return result.toString();
     }
 
-    @Tool(name = "jira_get_user_by_account_id", description = "Retrieves detailed information about a Jira user by their account ID. " +
-            "Returns user details including display name, email address, account ID, and active status. " +
-            "Use this to get information about a specific user in the Jira instance.")
+    @Tool(name = "jira_get_user_by_account_id", description =
+            "Retrieves detailed information about a Jira user by " + "their account ID. " + "Returns user details " +
+                    "including display name, email address, account ID, and " + "active status. " + "Use this to get " +
+                    "information about a specific user in the Jira instance.")
     public String getUserByAccountId(
             @ToolParam(description = "The account ID of the user to retrieve") String accountId) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
@@ -430,29 +433,29 @@ public class JiraService {
      */
     private String formatUserDetails(User user) {
         StringBuilder result = new StringBuilder();
-        
+
         result.append("User Details:\n\n");
         result.append("Display Name: ").append(user.getDisplayName()).append("\n");
         result.append("Account ID: ").append(user.getName()).append("\n");
-        
+
         if (user.getEmailAddress() != null && !user.getEmailAddress().isEmpty()) {
             result.append("Email: ").append(user.getEmailAddress()).append("\n");
         }
-        
+
         result.append("Active: ").append(user.isActive()).append("\n");
-        
+
         if (user.getSelf() != null) {
             result.append("Profile URL: ").append(user.getSelf()).append("\n");
         }
-        
+
         if (user.getAvatarUri() != null) {
             result.append("Avatar URL: ").append(user.getAvatarUri()).append("\n");
         }
-        
+
         if (user.getTimezone() != null && !user.getTimezone().isEmpty()) {
             result.append("Timezone: ").append(user.getTimezone()).append("\n");
         }
-        
+
         return result.toString();
     }
 
@@ -475,14 +478,22 @@ public class JiraService {
 
         // Reporter
         if (issue.getReporter() != null) {
-            result.append("Reporter: ").append(issue.getReporter().getDisplayName())
-                  .append(" (").append(issue.getReporter().getName()).append(")\n");
+            result
+                    .append("Reporter: ")
+                    .append(issue.getReporter().getDisplayName())
+                    .append(" (")
+                    .append(issue.getReporter().getName())
+                    .append(")\n");
         }
 
         // Assignee
         if (issue.getAssignee() != null) {
-            result.append("Assignee: ").append(issue.getAssignee().getDisplayName())
-                  .append(" (").append(issue.getAssignee().getName()).append(")\n");
+            result
+                    .append("Assignee: ")
+                    .append(issue.getAssignee().getDisplayName())
+                    .append(" (")
+                    .append(issue.getAssignee().getName())
+                    .append(")\n");
         }
 
         // Resolution
@@ -500,8 +511,12 @@ public class JiraService {
 
         // Project
         if (issue.getProject() != null) {
-            result.append("Project: ").append(issue.getProject().getName())
-                  .append(" (").append(issue.getProject().getKey()).append(")\n");
+            result
+                    .append("Project: ")
+                    .append(issue.getProject().getName())
+                    .append(" (")
+                    .append(issue.getProject().getKey())
+                    .append(")\n");
         }
 
         // Labels
@@ -516,9 +531,7 @@ public class JiraService {
                     .collect(Collectors.toList());
             if (!components.isEmpty()) {
                 result.append("Components: ");
-                result.append(components.stream()
-                        .map(BasicComponent::getName)
-                        .collect(Collectors.joining(", ")));
+                result.append(components.stream().map(BasicComponent::getName).collect(Collectors.joining(", ")));
                 result.append("\n");
             }
         }
@@ -530,9 +543,7 @@ public class JiraService {
                     .collect(Collectors.toList());
             if (!versions.isEmpty()) {
                 result.append("Affects Version/s: ");
-                result.append(versions.stream()
-                        .map(Version::getName)
-                        .collect(Collectors.joining(", ")));
+                result.append(versions.stream().map(Version::getName).collect(Collectors.joining(", ")));
                 result.append("\n");
             }
         }
@@ -544,9 +555,7 @@ public class JiraService {
                     .collect(Collectors.toList());
             if (!fixVersions.isEmpty()) {
                 result.append("Fix Version/s: ");
-                result.append(fixVersions.stream()
-                        .map(Version::getName)
-                        .collect(Collectors.joining(", ")));
+                result.append(fixVersions.stream().map(Version::getName).collect(Collectors.joining(", ")));
                 result.append("\n");
             }
         }
@@ -565,10 +574,16 @@ public class JiraService {
         if (issue.getTimeTracking() != null) {
             TimeTracking timeTracking = issue.getTimeTracking();
             if (timeTracking.getOriginalEstimateMinutes() != null) {
-                result.append("Original Estimate: ").append(timeTracking.getOriginalEstimateMinutes()).append(" minutes\n");
+                result
+                        .append("Original Estimate: ")
+                        .append(timeTracking.getOriginalEstimateMinutes())
+                        .append(" minutes\n");
             }
             if (timeTracking.getRemainingEstimateMinutes() != null) {
-                result.append("Remaining Estimate: ").append(timeTracking.getRemainingEstimateMinutes()).append(" minutes\n");
+                result
+                        .append("Remaining Estimate: ")
+                        .append(timeTracking.getRemainingEstimateMinutes())
+                        .append(" minutes\n");
             }
             if (timeTracking.getTimeSpentMinutes() != null) {
                 result.append("Time Spent: ").append(timeTracking.getTimeSpentMinutes()).append(" minutes\n");
@@ -583,10 +598,17 @@ public class JiraService {
             if (!attachments.isEmpty()) {
                 result.append("Attachments (").append(attachments.size()).append("):\n");
                 for (Attachment attachment : attachments) {
-                    result.append("  - ").append(attachment.getFilename())
-                          .append(" (").append(attachment.getSize()).append(" bytes, ")
-                          .append("by ").append(attachment.getAuthor() != null ? attachment.getAuthor().getDisplayName() : "Unknown")
-                          .append(")\n");
+                    result
+                            .append("  - ")
+                            .append(attachment.getFilename())
+                            .append(" (")
+                            .append(attachment.getSize())
+                            .append(" bytes, ")
+                            .append("by ")
+                            .append(attachment.getAuthor() != null ? attachment
+                                    .getAuthor()
+                                    .getDisplayName() : "Unknown")
+                            .append(")\n");
                 }
             }
         }
@@ -603,8 +625,12 @@ public class JiraService {
                 result.append("Issue Links (").append(issueLinks.size()).append("):\n");
                 for (IssueLink link : issueLinks) {
                     if (link.getTargetIssueKey() != null) {
-                        result.append("  - ").append(link.getIssueLinkType().getDescription())
-                              .append(": ").append(link.getTargetIssueKey()).append("\n");
+                        result
+                                .append("  - ")
+                                .append(link.getIssueLinkType().getDescription())
+                                .append(": ")
+                                .append(link.getTargetIssueKey())
+                                .append("\n");
                     }
                 }
             }
@@ -618,9 +644,14 @@ public class JiraService {
             if (!worklogs.isEmpty()) {
                 result.append("Worklogs (").append(worklogs.size()).append("):\n");
                 for (Worklog worklog : worklogs) {
-                    result.append("  - ").append(worklog.getAuthor().getDisplayName())
-                          .append(" (").append(formatDateTime(worklog.getStartDate())).append("): ")
-                          .append(worklog.getMinutesSpent()).append(" minutes");
+                    result
+                            .append("  - ")
+                            .append(worklog.getAuthor().getDisplayName())
+                            .append(" (")
+                            .append(formatDateTime(worklog.getStartDate()))
+                            .append("): ")
+                            .append(worklog.getMinutesSpent())
+                            .append(" minutes");
                     if (worklog.getComment() != null && !worklog.getComment().isEmpty()) {
                         result.append(" - ").append(worklog.getComment());
                     }
@@ -670,16 +701,23 @@ public class JiraService {
             if (!comments.isEmpty()) {
                 result.append("\nComments (").append(comments.size()).append("):\n");
                 for (Comment comment : comments) {
-                    result.append("  - ").append(comment.getAuthor().getDisplayName())
-                          .append(" (").append(formatDateTime(comment.getCreationDate())).append("): ")
-                          .append(comment.getBody())
-                          .append("\n");
+                    result
+                            .append("  - ")
+                            .append(comment.getAuthor().getDisplayName())
+                            .append(" (")
+                            .append(formatDateTime(comment.getCreationDate()))
+                            .append("): ")
+                            .append(comment.getBody())
+                            .append("\n");
                 }
             }
         }
 
-        result.append("\nURL: ").append(mcpConfiguration.getJiraConfiguration().getSiteUrl())
-              .append("/browse/").append(issue.getKey());
+        result
+                .append("\nURL: ")
+                .append(mcpConfiguration.getJiraConfiguration().getSiteUrl())
+                .append("/browse/")
+                .append(issue.getKey());
 
         return result.toString();
     }
@@ -688,14 +726,11 @@ public class JiraService {
      * Helper method to identify standard fields that should not be displayed in custom fields section.
      */
     private boolean isStandardField(String fieldName) {
-        Set<String> standardFields = Set.of(
-            "Summary", "Issue Type", "Status", "Priority", "Reporter", "Assignee",
-            "Resolution", "Created", "Updated", "Due Date", "Project", "Labels",
-            "Components", "Affects Version/s", "Fix Version/s", "Description",
-            "Votes", "Watchers", "Time Tracking", "Original Estimate", "Remaining Estimate",
-            "Time Spent", "Attachments", "Subtasks", "Issue Links", "Worklogs", "Comments",
-            "Key", "Issue key", "Issue id", "Id"
-        );
+        Set<String> standardFields = Set.of("Summary", "Issue Type", "Status", "Priority", "Reporter", "Assignee",
+                                            "Resolution", "Created", "Updated", "Due Date", "Project", "Labels",
+                                            "Components", "Affects Version/s", "Fix Version/s", "Description", "Votes"
+                , "Watchers", "Time Tracking", "Original Estimate", "Remaining Estimate", "Time Spent", "Attachments"
+                , "Subtasks", "Issue Links", "Worklogs", "Comments", "Key", "Issue key", "Issue id", "Id");
         return standardFields.contains(fieldName);
     }
 

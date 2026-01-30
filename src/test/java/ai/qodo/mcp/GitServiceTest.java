@@ -11,23 +11,21 @@ package ai.qodo.mcp;
 import ai.qodo.mcp.config.GitMcpConfiguration;
 import ai.qodo.mcp.service.GitService;
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.Status;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ObjectId;
-import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
-import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.AbstractTreeIterator;
 import org.eclipse.jgit.treewalk.CanonicalTreeParser;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
-import org.springframework.ai.chat.model.ToolContext;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -44,11 +42,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * - All public @Tool methods
  * - All private helper methods (ensureRootsInitialized, createSshTransportConfig, 
  *   pushInternal, openRepository, prepareTreeParser, extractRepoName)
+ * - SSH key selection based on URL host
  * - Edge cases, error handling, and resource management
  */
 class GitServiceTest {
 
     private GitService gitService;
+    private GitService gitServiceWithHostKeys;
     
     @TempDir
     Path tempDir;
@@ -60,7 +60,15 @@ class GitServiceTest {
 
     @BeforeEach
     void setUp() throws GitAPIException, IOException {
-        gitService = new GitService(mcpConfiguration);
+        // Create GitService with default configuration
+        gitService = new GitService(mcpConfiguration, "id_rsa", "");
+        
+        // Create GitService with host-to-key mappings
+        gitServiceWithHostKeys = new GitService(
+                mcpConfiguration, 
+                "id_rsa", 
+                "github.com=github_key,ssh.dev.azure.com=azure_key,dev.azure.com=azure_key"
+        );
         
         // Create a test repository
         repoPath = tempDir.resolve("test-repo");
@@ -76,6 +84,178 @@ class GitServiceTest {
         git.commit().setMessage("Initial commit").call();
         
         git.close();
+    }
+
+    // ========== Helper methods for reflection-based testing ==========
+
+    private String invokeExtractHostFromUrl(GitService service, String url) throws Exception {
+        Method method = GitService.class.getDeclaredMethod("extractHostFromUrl", String.class);
+        method.setAccessible(true);
+        return (String) method.invoke(service, url);
+    }
+
+    private String invokeGetSshKeyFileForUrl(GitService service, String url) throws Exception {
+        Method method = GitService.class.getDeclaredMethod("getSshKeyFileForUrl", String.class);
+        method.setAccessible(true);
+        return (String) method.invoke(service, url);
+    }
+
+    // ========== Tests for extractHostFromUrl method ==========
+
+    @ParameterizedTest
+    @CsvSource({
+        "git@github.com:user/repo.git, github.com",
+        "git@github.com:org/team/repo.git, github.com",
+        "ssh://git@github.com/user/repo.git, github.com",
+        "ssh://git@github.com:22/user/repo.git, github.com",
+        "https://github.com/user/repo.git, github.com",
+        "https://github.com/user/repo, github.com",
+        "http://github.com/user/repo.git, github.com",
+        "git@ssh.dev.azure.com:v3/org/project/repo, ssh.dev.azure.com",
+        "https://dev.azure.com/org/project/_git/repo, dev.azure.com",
+        "git@gitlab.com:user/repo.git, gitlab.com",
+        "https://bitbucket.org/user/repo.git, bitbucket.org",
+        "git@github.enterprise.com:user/repo.git, github.enterprise.com",
+        "https://github.enterprise.com:8443/user/repo.git, github.enterprise.com"
+    })
+    void testExtractHostFromUrl_ValidUrls(String url, String expectedHost) throws Exception {
+        String host = invokeExtractHostFromUrl(gitService, url);
+        assertEquals(expectedHost, host);
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    @ValueSource(strings = {"   ", "invalid-url", "just-text"})
+    void testExtractHostFromUrl_InvalidUrls(String url) throws Exception {
+        String host = invokeExtractHostFromUrl(gitService, url);
+        assertNull(host);
+    }
+
+    @Test
+    void testExtractHostFromUrl_CaseInsensitive() throws Exception {
+        String host = invokeExtractHostFromUrl(gitService, "git@GitHub.COM:user/repo.git");
+        assertEquals("github.com", host);
+    }
+
+    // ========== Tests for getSshKeyFileForUrl method ==========
+
+    @Test
+    void testGetSshKeyFileForUrl_DefaultKey() throws Exception {
+        // No host mappings configured, should return default
+        String keyFile = invokeGetSshKeyFileForUrl(gitService, "git@github.com:user/repo.git");
+        assertEquals("id_rsa", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_GitHubMapping() throws Exception {
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, "git@github.com:user/repo.git");
+        assertEquals("github_key", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_AzureDevOpsSshMapping() throws Exception {
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, "git@ssh.dev.azure.com:v3/org/project/repo");
+        assertEquals("azure_key", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_AzureDevOpsHttpsMapping() throws Exception {
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, "https://dev.azure.com/org/project/_git/repo");
+        assertEquals("azure_key", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_UnmappedHost() throws Exception {
+        // GitLab is not in the mappings, should return default
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, "git@gitlab.com:user/repo.git");
+        assertEquals("id_rsa", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_NullUrl() throws Exception {
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, null);
+        assertEquals("id_rsa", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_EmptyUrl() throws Exception {
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, "");
+        assertEquals("id_rsa", keyFile);
+    }
+
+    @Test
+    void testGetSshKeyFileForUrl_CaseInsensitiveHostLookup() throws Exception {
+        // Host extraction is case-insensitive
+        String keyFile = invokeGetSshKeyFileForUrl(gitServiceWithHostKeys, "git@GITHUB.COM:user/repo.git");
+        assertEquals("github_key", keyFile);
+    }
+
+    // ========== Tests for host key mapping parsing ==========
+
+    @Test
+    void testHostKeyMappingParsing_EmptyString() throws Exception {
+        GitService service = new GitService(mcpConfiguration, "default_key", "");
+        String keyFile = invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git");
+        assertEquals("default_key", keyFile);
+    }
+
+    @Test
+    void testHostKeyMappingParsing_SingleMapping() throws Exception {
+        GitService service = new GitService(mcpConfiguration, "default_key", "github.com=gh_key");
+        assertEquals("gh_key", invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git"));
+        assertEquals("default_key", invokeGetSshKeyFileForUrl(service, "git@gitlab.com:user/repo.git"));
+    }
+
+    @Test
+    void testHostKeyMappingParsing_MultipleMapping() throws Exception {
+        GitService service = new GitService(
+                mcpConfiguration, 
+                "default_key", 
+                "github.com=gh_key,gitlab.com=gl_key,bitbucket.org=bb_key"
+        );
+        assertEquals("gh_key", invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git"));
+        assertEquals("gl_key", invokeGetSshKeyFileForUrl(service, "git@gitlab.com:user/repo.git"));
+        assertEquals("bb_key", invokeGetSshKeyFileForUrl(service, "git@bitbucket.org:user/repo.git"));
+    }
+
+    @Test
+    void testHostKeyMappingParsing_WithSpaces() throws Exception {
+        GitService service = new GitService(
+                mcpConfiguration, 
+                "default_key", 
+                " github.com = gh_key , gitlab.com = gl_key "
+        );
+        assertEquals("gh_key", invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git"));
+        assertEquals("gl_key", invokeGetSshKeyFileForUrl(service, "git@gitlab.com:user/repo.git"));
+    }
+
+    @Test
+    void testHostKeyMappingParsing_InvalidEntries() throws Exception {
+        // Invalid entries should be ignored
+        GitService service = new GitService(
+                mcpConfiguration, 
+                "default_key", 
+                "github.com=gh_key,invalid,=nohost,novalue=,gitlab.com=gl_key"
+        );
+        assertEquals("gh_key", invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git"));
+        assertEquals("gl_key", invokeGetSshKeyFileForUrl(service, "git@gitlab.com:user/repo.git"));
+        assertEquals("default_key", invokeGetSshKeyFileForUrl(service, "git@bitbucket.org:user/repo.git"));
+    }
+
+    @Test
+    void testHostKeyMappingParsing_NullMappings() throws Exception {
+        // When host-keys is null (from #{null} SpEL expression), it should use default key
+        GitService service = new GitService(mcpConfiguration, "default_key", null);
+        String keyFile = invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git");
+        assertEquals("default_key", keyFile);
+    }
+
+    @Test
+    void testHostKeyMappingParsing_BlankMappings() throws Exception {
+        // When host-keys is blank/whitespace, it should use default key
+        GitService service = new GitService(mcpConfiguration, "default_key", "   ");
+        String keyFile = invokeGetSshKeyFileForUrl(service, "git@github.com:user/repo.git");
+        assertEquals("default_key", keyFile);
     }
 
     // ========== Tests for getStatus method ==========
@@ -260,7 +440,7 @@ class GitServiceTest {
     }
 
     @Test
-    void testCheckoutBranch_NonExistentBranch() throws IOException, GitAPIException {
+    void testCheckoutBranch_NonExistentBranch() {
         Exception exception = assertThrows(Exception.class, () -> {
             gitService.checkoutBranch(repoPath.toString(), "non-existent-branch");
         });
@@ -331,6 +511,12 @@ class GitServiceTest {
         assertEquals("my-project", repoName);
     }
 
+    @Test
+    void testExtractRepoName_AzureDevOpsUrl() throws Exception {
+        String repoName = invokeExtractRepoName("git@ssh.dev.azure.com:v3/org/project/my-repo");
+        assertEquals("my-repo", repoName);
+    }
+
     // ========== Tests for openRepository private method ==========
 
     private Git invokeOpenRepository(String repositoryPath) throws Exception {
@@ -368,7 +554,7 @@ class GitServiceTest {
     }
 
     @Test
-    void testOpenRepository_NullPath() throws Exception {
+    void testOpenRepository_NullPath() {
         try {
             Git git = invokeOpenRepository(null);
             // If it doesn't throw, verify we got a result
@@ -434,14 +620,15 @@ class GitServiceTest {
 
     // ========== Tests for ensureRootsInitialized private method ==========
 
-    private void invokeEnsureRootsInitialized(ToolContext toolContext) throws Exception {
-        Method method = GitService.class.getDeclaredMethod("ensureRootsInitialized", ToolContext.class);
+    private void invokeEnsureRootsInitialized(Object toolContext) throws Exception {
+        Method method = GitService.class.getDeclaredMethod("ensureRootsInitialized", 
+                org.springframework.ai.chat.model.ToolContext.class);
         method.setAccessible(true);
         method.invoke(gitService, toolContext);
     }
 
     @Test
-    void testEnsureRootsInitialized_WithNullToolContext() throws Exception {
+    void testEnsureRootsInitialized_WithNullToolContext() {
         try {
             invokeEnsureRootsInitialized(null);
             // If successful, configuration handled null gracefully
@@ -460,7 +647,7 @@ class GitServiceTest {
     }
 
     @Test
-    void testCreateSshTransportConfig_KeyFileValidation() throws Exception {
+    void testCreateSshTransportConfig_KeyFileValidation() {
         try {
             Object transportConfig = invokeCreateSshTransportConfig();
             // If successful, key file exists and is readable
@@ -471,7 +658,50 @@ class GitServiceTest {
             if (cause instanceof RuntimeException) {
                 String message = cause.getMessage();
                 assertTrue(message.contains("SSH key file not found") || 
-                          message.contains("SSH key file is not readable"));
+                          message.contains("SSH key file is not readable") ||
+                          message.contains("Configure mcp.git.ssh"));
+            }
+        }
+    }
+
+    // ========== Tests for createSshTransportConfigForUrl private method ==========
+
+    private Object invokeCreateSshTransportConfigForUrl(String remoteUrl) throws Exception {
+        Method method = GitService.class.getDeclaredMethod("createSshTransportConfigForUrl", String.class);
+        method.setAccessible(true);
+        return method.invoke(gitService, remoteUrl);
+    }
+
+    @Test
+    void testCreateSshTransportConfigForUrl_WithGitHubUrl() {
+        try {
+            Object transportConfig = invokeCreateSshTransportConfigForUrl("git@github.com:user/repo.git");
+            assertNotNull(transportConfig);
+        } catch (Exception e) {
+            // Expected if SSH key doesn't exist
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                String message = cause.getMessage();
+                assertTrue(message.contains("SSH key file not found") || 
+                          message.contains("SSH key file is not readable") ||
+                          message.contains("Configure mcp.git.ssh"));
+            }
+        }
+    }
+
+    @Test
+    void testCreateSshTransportConfigForUrl_WithNullUrl() {
+        try {
+            Object transportConfig = invokeCreateSshTransportConfigForUrl(null);
+            assertNotNull(transportConfig);
+        } catch (Exception e) {
+            // Expected if SSH key doesn't exist
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                String message = cause.getMessage();
+                assertTrue(message.contains("SSH key file not found") || 
+                          message.contains("SSH key file is not readable") ||
+                          message.contains("Configure mcp.git.ssh"));
             }
         }
     }
@@ -485,7 +715,7 @@ class GitServiceTest {
     }
 
     @Test
-    void testPushInternal_RemoteNotConfigured() throws Exception {
+    void testPushInternal_RemoteNotConfigured() {
         Exception exception = assertThrows(Exception.class, () -> {
             invokePushInternal(repoPath.toString(), "nonexistent-remote", "master", false);
         });
@@ -551,7 +781,7 @@ class GitServiceTest {
     // ========== Tests for pull method ==========
 
     @Test
-    void testPull_NoRemoteConfigured() throws Exception {
+    void testPull_NoRemoteConfigured() {
         try {
             String result = gitService.pull(repoPath.toString());
             assertNotNull(result);
@@ -569,7 +799,7 @@ class GitServiceTest {
     // ========== Tests for cloneRepository method ==========
 
     @Test
-    void testCloneRepository_ExtractsRepoName() throws Exception {
+    void testCloneRepository_ExtractsRepoName() {
         String url = "https://github.com/user/test-repo.git";
         
         try {
@@ -582,7 +812,7 @@ class GitServiceTest {
     }
 
     @Test
-    void testCloneRepository_WithNullUrl() throws Exception {
+    void testCloneRepository_WithNullUrl() {
         Exception exception = assertThrows(Exception.class, () -> {
             gitService.cloneRepository(null, null);
         });
@@ -591,11 +821,57 @@ class GitServiceTest {
     }
 
     @Test
-    void testCloneRepository_WithEmptyUrl() throws Exception {
+    void testCloneRepository_WithEmptyUrl() {
         Exception exception = assertThrows(Exception.class, () -> {
             gitService.cloneRepository("", null);
         });
         
         assertNotNull(exception);
+    }
+
+    // ========== Tests for URL patterns with various formats ==========
+
+    @Test
+    void testUrlPatterns_GitHubVariants() throws Exception {
+        // Standard SSH
+        assertEquals("github.com", invokeExtractHostFromUrl(gitService, "git@github.com:user/repo.git"));
+        // SSH with explicit protocol
+        assertEquals("github.com", invokeExtractHostFromUrl(gitService, "ssh://git@github.com/user/repo.git"));
+        // HTTPS
+        assertEquals("github.com", invokeExtractHostFromUrl(gitService, "https://github.com/user/repo.git"));
+        // HTTP (less common but valid)
+        assertEquals("github.com", invokeExtractHostFromUrl(gitService, "http://github.com/user/repo.git"));
+    }
+
+    @Test
+    void testUrlPatterns_AzureDevOpsVariants() throws Exception {
+        // SSH format for Azure DevOps
+        assertEquals("ssh.dev.azure.com", invokeExtractHostFromUrl(gitService, "git@ssh.dev.azure.com:v3/org/project/repo"));
+        // HTTPS format for Azure DevOps
+        assertEquals("dev.azure.com", invokeExtractHostFromUrl(gitService, "https://dev.azure.com/org/project/_git/repo"));
+        // Old visualstudio.com format
+        assertEquals("org.visualstudio.com", invokeExtractHostFromUrl(gitService, "https://org.visualstudio.com/project/_git/repo"));
+    }
+
+    @Test
+    void testUrlPatterns_GitLabVariants() throws Exception {
+        assertEquals("gitlab.com", invokeExtractHostFromUrl(gitService, "git@gitlab.com:user/repo.git"));
+        assertEquals("gitlab.com", invokeExtractHostFromUrl(gitService, "https://gitlab.com/user/repo.git"));
+        // Self-hosted GitLab
+        assertEquals("gitlab.mycompany.com", invokeExtractHostFromUrl(gitService, "git@gitlab.mycompany.com:user/repo.git"));
+    }
+
+    @Test
+    void testUrlPatterns_BitbucketVariants() throws Exception {
+        assertEquals("bitbucket.org", invokeExtractHostFromUrl(gitService, "git@bitbucket.org:user/repo.git"));
+        assertEquals("bitbucket.org", invokeExtractHostFromUrl(gitService, "https://bitbucket.org/user/repo.git"));
+    }
+
+    @Test
+    void testUrlPatterns_WithPorts() throws Exception {
+        // SSH with port
+        assertEquals("github.enterprise.com", invokeExtractHostFromUrl(gitService, "ssh://git@github.enterprise.com:22/user/repo.git"));
+        // HTTPS with port
+        assertEquals("github.enterprise.com", invokeExtractHostFromUrl(gitService, "https://github.enterprise.com:8443/user/repo.git"));
     }
 }

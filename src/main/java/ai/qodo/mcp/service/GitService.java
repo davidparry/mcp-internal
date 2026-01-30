@@ -35,24 +35,129 @@ import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service()
 @ConditionalOnProperty(name = "mcp.git.enabled", havingValue = "true", matchIfMissing = true)
 public class GitService {
 
     private static final Logger logger = LoggerFactory.getLogger(GitService.class);
+    
+    // Pattern to extract host from HTTPS/HTTP URLs like https://github.com/user/repo.git
+    private static final Pattern HTTPS_URL_PATTERN = Pattern.compile("^https?://([^/:]+)(?::\\d+)?/.*$");
+    
+    // Pattern to extract host from SSH URLs like git@github.com:user/repo.git or ssh://git@github.com/user/repo.git
+    private static final Pattern SSH_URL_PATTERN = Pattern.compile("^(?:ssh://)?[^@]+@([^:/]+)(?::\\d+)?[:/].*$");
+    
     private final GitMcpConfiguration mcpConfiguration;
+    private final Map<String, String> hostToSshKeyMap;
+    private final String defaultSshKeyFile;
 
-    public GitService(GitMcpConfiguration gitMcpConfiguration) {
+    /**
+     * Creates a GitService with configurable SSH key mappings.
+     * 
+     * SSH keys can be configured via properties:
+     * - mcp.git.ssh.default-key: Default SSH key file name (default: id_rsa)
+     * - mcp.git.ssh.host-keys: Comma-separated host=keyfile mappings
+     *   Example: github.com=github_key,ssh.dev.azure.com=azure_key
+     * 
+     * The service will automatically detect the host from the remote URL and use
+     * the appropriate SSH key. If no mapping is found, it falls back to the default key.
+     * 
+     * Your ~/.ssh/config file is also respected by JGit's SSH implementation,
+     * so you can configure host aliases there as well.
+     */
+    public GitService(
+            GitMcpConfiguration gitMcpConfiguration,
+            @Value("${mcp.git.ssh.default-key:id_rsa}") String defaultSshKey,
+            @Value("${mcp.git.ssh.host-keys:#{null}}") String hostKeyMappings) {
         this.mcpConfiguration = gitMcpConfiguration;
+        this.defaultSshKeyFile = defaultSshKey;
+        this.hostToSshKeyMap = parseHostKeyMappings(hostKeyMappings);
+        
+        logger.info("GitService initialized with default SSH key: {}", defaultSshKeyFile);
+        if (!hostToSshKeyMap.isEmpty()) {
+            logger.info("SSH key mappings configured: {}", hostToSshKeyMap);
+        }
+        
         SshSessionFactory.setInstance(new SshdSessionFactory());
+    }
+    
+    /**
+     * Parses the host-to-key mappings from configuration string.
+     * Format: "host1=key1,host2=key2"
+     * Example: "github.com=github_key,ssh.dev.azure.com=azure_key"
+     */
+    private Map<String, String> parseHostKeyMappings(String mappings) {
+        Map<String, String> result = new HashMap<>();
+        if (mappings == null || mappings.isBlank()) {
+            return result;
+        }
+        
+        for (String mapping : mappings.split(",")) {
+            String[] parts = mapping.trim().split("=", 2);
+            if (parts.length == 2 && !parts[0].isBlank() && !parts[1].isBlank()) {
+                result.put(parts[0].trim().toLowerCase(), parts[1].trim());
+                logger.debug("Registered SSH key mapping: {} -> {}", parts[0].trim(), parts[1].trim());
+            }
+        }
+        return result;
+    }
+    
+    /**
+     * Extracts the host from a Git remote URL.
+     * Supports both SSH and HTTPS URL formats:
+     * - git@github.com:user/repo.git -> github.com
+     * - ssh://git@github.com/user/repo.git -> github.com
+     * - https://github.com/user/repo.git -> github.com
+     * - git@ssh.dev.azure.com:v3/org/project/repo -> ssh.dev.azure.com
+     * - https://dev.azure.com/org/project/_git/repo -> dev.azure.com
+     */
+    String extractHostFromUrl(String remoteUrl) {
+        if (remoteUrl == null || remoteUrl.isBlank()) {
+            return null;
+        }
+        
+        // Try SSH URL pattern first
+        Matcher sshMatcher = SSH_URL_PATTERN.matcher(remoteUrl);
+        if (sshMatcher.matches()) {
+            return sshMatcher.group(1).toLowerCase();
+        }
+        
+        // Try HTTPS URL pattern
+        Matcher httpsMatcher = HTTPS_URL_PATTERN.matcher(remoteUrl);
+        if (httpsMatcher.matches()) {
+            return httpsMatcher.group(1).toLowerCase();
+        }
+        
+        logger.warn("Could not extract host from URL: {}", remoteUrl);
+        return null;
+    }
+    
+    /**
+     * Determines the SSH key file to use based on the remote URL's host.
+     * Falls back to the default key if no specific mapping is found.
+     */
+    String getSshKeyFileForUrl(String remoteUrl) {
+        String host = extractHostFromUrl(remoteUrl);
+        if (host != null && hostToSshKeyMap.containsKey(host)) {
+            String keyFile = hostToSshKeyMap.get(host);
+            logger.debug("Using SSH key '{}' for host '{}'", keyFile, host);
+            return keyFile;
+        }
+        logger.debug("Using default SSH key '{}' for URL: {}", defaultSshKeyFile, remoteUrl);
+        return defaultSshKeyFile;
     }
 
     /**
@@ -65,7 +170,7 @@ public class GitService {
 
 
     @Tool(name = "git_clone_repository", description = "Clones a remote Git repository to the local filesystem. " +
-            "Accepts both HTTPS and SSH URLs (e.g., 'https://github.com/user/repo.git' or 'git@github.com:user/repo" + ".git'). The repository will be cloned to a directory named after the repository in the configured " + "default path. Supports SSH authentication using standard SSH keys from ~/.ssh/. Use this to create a " + "local copy of a remote repository.")
+            "Accepts both HTTPS and SSH URLs (e.g., 'https://github.com/user/repo.git' or 'git@github.com:user/repo.git'). The repository will be cloned to a directory named after the repository in the configured " + "default path. Supports SSH authentication using standard SSH keys from ~/.ssh/. Use this to create a local copy of a remote repository.")
     public String cloneRepository(
             @ToolParam(description = "The remote url for the repository to clone") String remoteUrl,
             ToolContext toolContext) throws GitAPIException, InterruptedException {
@@ -76,8 +181,8 @@ public class GitService {
         String targetPath = this.mcpConfiguration.getDefaultLocalPath() + File.separator + repoName;
         logger.info("Using path from roots: {}", targetPath);
 
-        // Configure SSH transport with specific key file
-        TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+        // Configure SSH transport with URL-specific key file selection
+        TransportConfigCallback transportConfigCallback = createSshTransportConfigForUrl(remoteUrl);
 
         Git git = Git
                 .cloneRepository()
@@ -90,23 +195,34 @@ public class GitService {
         return "Repository cloned successfully to repositoryPath: " + targetPath;
     }
 
+
     /**
-     * Creates a transport configuration callback that configures SSH to use a specific private key.
-     * Configured to use /home/spring/.ssh/aws_ecdsa key file.
+     * Creates a transport configuration callback that configures SSH to use a specific private key
+     * based on the remote URL's host.
      * <p>
-     * Note: The .setPreferredAuthentications("publickey") setting tells SSH to use public key authentication.
-     * You do NOT need a separate .pub (public key) file in the directory - SSH will automatically derive
-     * the public key from the private key file (aws_ecdsa). The private key file must exist and be readable.
+     * The key selection works as follows:
+     * 1. Extract the host from the remote URL (e.g., github.com, ssh.dev.azure.com)
+     * 2. Look up the host in the configured host-to-key mappings
+     * 3. If found, use the mapped key file; otherwise, use the default key
+     * <p>
+     * Additionally, JGit respects your ~/.ssh/config file, so host aliases configured there
+     * will also work (e.g., Host github-work, Host azure-personal).
+     *
+     * @param remoteUrl The remote URL to determine which SSH key to use (can be null for default)
      */
-    private TransportConfigCallback createSshTransportConfig() {
-        // Use the specific SSH key file
+    private TransportConfigCallback createSshTransportConfigForUrl(String remoteUrl) {
         File homeDir = FS.DETECTED.userHome();
         File sshDir = new File(homeDir, ".ssh");
-        File keyFile = new File(sshDir, "aws_ecdsa");
+        
+        // Determine which key file to use based on the URL
+        String keyFileName = getSshKeyFileForUrl(remoteUrl);
+        File keyFile = new File(sshDir, keyFileName);
 
         logger.debug("=== SSH Configuration Validation ===");
+        logger.debug("Remote URL: {}", remoteUrl);
+        logger.debug("Detected host: {}", extractHostFromUrl(remoteUrl));
+        logger.debug("Selected SSH key file: {}", keyFileName);
         logger.debug("Detected user home: {}", homeDir);
-        logger.debug("Configured home directory: {}", homeDir.getAbsolutePath());
         logger.debug("SSH directory: {}", sshDir.getAbsolutePath());
         logger.debug("SSH directory exists: {}", sshDir.exists());
         logger.debug("SSH directory readable: {}", sshDir.canRead());
@@ -130,12 +246,13 @@ public class GitService {
         // Verify the key file exists and is readable
         if (!keyFile.exists()) {
             logger.error("SSH key file does not exist: {}", keyFile.getAbsolutePath());
-            throw new RuntimeException("SSH key file not found: " + keyFile.getAbsolutePath());
+            throw new RuntimeException("SSH key file not found: " + keyFile.getAbsolutePath() + 
+                    ". Configure mcp.git.ssh.default-key or mcp.git.ssh.host-keys property.");
         }
         if (!keyFile.canRead()) {
             logger.error("SSH key file is not readable: {}", keyFile.getAbsolutePath());
-            throw new RuntimeException("SSH key file is not readable: " + keyFile.getAbsolutePath() + ". Check file " +
-                                               "permissions (should be 600).");
+            throw new RuntimeException("SSH key file is not readable: " + keyFile.getAbsolutePath() + 
+                    ". Check file permissions (should be 600).");
         }
 
         logger.debug("SSH key validation passed. Key file size: {} bytes", keyFile.length());
@@ -143,10 +260,11 @@ public class GitService {
 
         return transport -> {
             if (transport instanceof SshTransport sshTransport) {
-                logger.debug("Configuring SSH transport for connection");
+                logger.debug("Configuring SSH transport for connection using key: {}", keyFileName);
 
                 // Create a custom SSH session factory with the specific key file
                 // The public key is automatically derived from the private key - no .pub file needed
+                // JGit will also read ~/.ssh/config for additional host configurations
                 SshdSessionFactory sshSessionFactory = new SshdSessionFactoryBuilder()
                         .setPreferredAuthentications("publickey")
                         .setSshDirectory(sshDir)
@@ -545,7 +663,8 @@ public class GitService {
                 // Continue with push attempt - let the remote decide if it's allowed
             }
 
-            TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+            // Use URL-aware SSH transport configuration
+            TransportConfigCallback transportConfigCallback = createSshTransportConfigForUrl(remoteUrl);
 
             // Execute push and capture results
             var pushCommand = git
@@ -690,7 +809,12 @@ public class GitService {
                     "your local repository with the latest changes from the remote server.")
     public String pull(String repositoryPath) throws IOException, GitAPIException {
         try (Git git = openRepository(repositoryPath)) {
-            TransportConfigCallback transportConfigCallback = createSshTransportConfig();
+            Repository repository = git.getRepository();
+            
+            // Get the remote URL to determine which SSH key to use
+            String remoteUrl = repository.getConfig().getString("remote", "origin", "url");
+            TransportConfigCallback transportConfigCallback = createSshTransportConfigForUrl(remoteUrl);
+            
             git.pull().setTransportConfigCallback(transportConfigCallback).call();
 
             return "Pull completed successfully";
