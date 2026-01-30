@@ -8,9 +8,7 @@
       "env": {
         "JIRA_MCP_ENABLED": "true",
         "JIRA_SITE_URL": "",
-        "JIRA_EMAIL": "",
-        "JIRA_API_TOKEN": "",
-        "GITHUB_API_TOKEN": ""
+        "JIRA_EMAIL": ""
 
       }
     }
