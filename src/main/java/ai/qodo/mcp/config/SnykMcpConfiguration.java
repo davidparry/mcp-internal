@@ -8,15 +8,11 @@
 
 package ai.qodo.mcp.config;
 
-import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -31,16 +27,19 @@ public class SnykMcpConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(SnykMcpConfiguration.class);
     private final McpToolsConfiguration mcpToolsConfiguration;
+    private final SnykConfiguration snykConfiguration;
 
-    @Value("${mcp.snyk.api-token}")
-    private String snykApiToken;
-
-    public SnykMcpConfiguration(McpToolsConfiguration mcpToolsConfiguration) {
+    public SnykMcpConfiguration(McpToolsConfiguration mcpToolsConfiguration, SnykConfiguration snykConfiguration) {
         this.mcpToolsConfiguration = mcpToolsConfiguration;
+        this.snykConfiguration = snykConfiguration;
     }
 
     public String getSnykApiToken() {
-        return snykApiToken;
+        return snykConfiguration.getApiToken();
+    }
+
+    public SnykConfiguration getSnykConfiguration() {
+        return snykConfiguration;
     }
 
     /**
