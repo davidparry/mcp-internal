@@ -11,6 +11,7 @@ package ai.qodo.mcp.service;
 import ai.qodo.mcp.config.JiraConfiguration;
 import ai.qodo.mcp.config.JiraMcpConfiguration;
 import com.atlassian.jira.rest.client.api.JiraRestClient;
+import com.atlassian.jira.rest.client.api.RestClientException;
 import com.atlassian.jira.rest.client.api.domain.*;
 import com.atlassian.jira.rest.client.api.domain.input.IssueInput;
 import com.atlassian.jira.rest.client.api.domain.input.IssueInputBuilder;
@@ -50,6 +51,11 @@ public class JiraService {
     @PostConstruct
     public void init() {
         JiraConfiguration jiraConfiguration = mcpConfiguration.getJiraConfiguration();
+        logger.info("Jira config loaded: siteUrl='{}', email='{}', apiToken={}, enabled={}",
+                    jiraConfiguration.getSiteUrl(),
+                    jiraConfiguration.getEmail(),
+                    redactSecret(jiraConfiguration.getApiToken()),
+                    jiraConfiguration.isEnabled());
         if (mcpConfiguration.isConfigurationValid()) {
             try {
                 URI jiraServerUri = new URI(jiraConfiguration.getSiteUrl());
@@ -62,19 +68,28 @@ public class JiraService {
 
                 // Create client - this is lazy and won't block
                 this.jiraRestClient = factory.create(jiraServerUri, authHandler);
-                logger.info("Jira REST client factory created for: {}", jiraConfiguration.getSiteUrl());
+                logger.info("Jira REST client factory created for: {} (resolved host: {})",
+                            jiraConfiguration.getSiteUrl(), jiraServerUri.getHost());
                 logger.info("Note: Actual connection will be established on first use");
             } catch (URISyntaxException e) {
-                logger.error("Invalid Jira site URL: {}", jiraConfiguration.getSiteUrl(), e);
+                logger.error("Invalid Jira site URL: '{}' — {}", jiraConfiguration.getSiteUrl(), e.getMessage(), e);
                 this.jiraRestClient = null;
             } catch (Exception e) {
-                logger.error("Failed to create Jira REST client factory: {}", e.getMessage(), e);
+                logger.error("Failed to create Jira REST client factory: {} ({})",
+                             e.getMessage(), e.getClass().getName(), e);
                 this.jiraRestClient = null;
             }
         } else {
             logger.warn("Jira configuration is invalid. Service will not be initialized.");
             logger.warn("Please ensure JIRA_SITE_URL, JIRA_EMAIL, and JIRA_API_TOKEN environment variables are set.");
         }
+    }
+
+    private static String redactSecret(String secret) {
+        if (secret == null) return "<null>";
+        if (secret.isEmpty()) return "<empty>";
+        int show = Math.min(4, secret.length());
+        return secret.substring(0, show) + "***(len=" + secret.length() + ")";
     }
 
     @PreDestroy
@@ -98,6 +113,70 @@ public class JiraService {
         }
     }
 
+    @FunctionalInterface
+    private interface JiraOp<T> {
+        T call() throws ExecutionException, InterruptedException;
+    }
+
+    private <T> T trace(String op, String params, JiraOp<T> call)
+            throws ExecutionException, InterruptedException {
+        long start = System.currentTimeMillis();
+        logger.info("Jira call -> {} [{}]", op, params);
+        try {
+            T result = call.call();
+            logger.debug("Jira call OK <- {} [{}] in {} ms", op, params, System.currentTimeMillis() - start);
+            return result;
+        } catch (RestClientException e) {
+            logRestClientException(op, params, e);
+            throw e;
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RestClientException rce) {
+                logRestClientException(op, params, rce);
+            } else {
+                logger.error("Jira ExecutionException in {} [{}]: causeClass={}, causeMessage={}",
+                             op, params,
+                             cause != null ? cause.getClass().getName() : "<null>",
+                             cause != null ? cause.getMessage() : "<null>", e);
+                logCauseChain(cause);
+            }
+            throw e;
+        } catch (InterruptedException e) {
+            logger.error("Jira call interrupted in {} [{}]", op, params, e);
+            Thread.currentThread().interrupt();
+            throw e;
+        } catch (RuntimeException e) {
+            logger.error("Jira RuntimeException in {} [{}]: {} ({})",
+                         op, params, e.getClass().getName(), e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    private void logRestClientException(String op, String params, RestClientException e) {
+        Throwable cause = e.getCause();
+        logger.error("Jira RestClientException in {} [{}]: statusCode={}, errorCollections={}, message={}, causeClass={}, causeMessage={}",
+                     op, params,
+                     e.getStatusCode(),
+                     e.getErrorCollections(),
+                     e.getMessage(),
+                     cause != null ? cause.getClass().getName() : "<null>",
+                     cause != null ? cause.getMessage() : "<null>",
+                     e);
+        logCauseChain(cause);
+    }
+
+    private void logCauseChain(Throwable t) {
+        Throwable c = t;
+        int depth = 0;
+        while (c != null && depth < 8) {
+            logger.error("  cause[{}] {}: {}", depth, c.getClass().getName(), c.getMessage());
+            Throwable next = c.getCause();
+            if (next == c) break;
+            c = next;
+            depth++;
+        }
+    }
+
     @Tool(name = "jira_get_issue", description = "Retrieves detailed information about a specific Jira issue. " +
             "Returns issue details including summary, description, status, assignee, reporter, priority, " + "issue " + "type, and all custom fields. Use this to get comprehensive information about a single issue.")
     public String getIssue(
@@ -105,7 +184,8 @@ public class JiraService {
             InterruptedException {
         ensureClientInitialized();
 
-        Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
+        Issue issue = trace("getIssue", "issueKey=" + issueKey,
+                () -> jiraRestClient.getIssueClient().getIssue(issueKey).get());
 
         return formatIssueDetails(issue);
     }
@@ -118,11 +198,25 @@ public class JiraService {
         ensureClientInitialized();
 
         int limit = maxResults != null ? maxResults : 50;
+        final int searchLimit = limit;
 
-        SearchResult searchResult = jiraRestClient.getSearchClient().searchJql(jql, limit, 0, null).get();
+        // JIRA Cloud's enhanced search API omits the per-issue "fields" block unless
+        // we ask for fields explicitly — without this the legacy IssueJsonParser
+        // throws JSONException: JSONObject["fields"] not found. "*all" mirrors the
+        // legacy behaviour and gives formatIssueSummary what it needs.
+        final Set<String> searchFields = Set.of("*all");
+
+        SearchResult searchResult = trace("searchIssues", "jql=" + jql + ", limit=" + searchLimit,
+                () -> jiraRestClient.getSearchClient().searchJql(jql, searchLimit, 0, searchFields).get());
+
+        // JIRA Cloud's new search API no longer returns `total` in the search response;
+        // searchResult.getTotal() is no longer reliable. Fetch the estimated count
+        // separately via SearchRestClient.totalCount as Atlassian recommends.
+        TotalCount totalCount = trace("searchIssues.totalCount", "jql=" + jql,
+                () -> jiraRestClient.getSearchClient().totalCount(jql).get());
 
         StringBuilder result = new StringBuilder();
-        result.append("Search Results (").append(searchResult.getTotal()).append(" total issues found):\n\n");
+        result.append("Search Results (").append(totalCount.getCount()).append(" total issues found):\n\n");
 
         for (Issue issue : searchResult.getIssues()) {
             result.append(formatIssueSummary(issue)).append("\n");
@@ -142,11 +236,15 @@ public class JiraService {
         ensureClientInitialized();
 
         // Get project
-        Project project = jiraRestClient.getProjectClient().getProject(projectKey).get();
+        Project project = trace("createIssue.getProject", "projectKey=" + projectKey,
+                () -> jiraRestClient.getProjectClient().getProject(projectKey).get());
 
         // Find issue type
+        Iterable<IssueType> issueTypesForCreate = trace("createIssue.getIssueTypes",
+                "projectKey=" + projectKey + ", lookupType=" + issueType,
+                () -> jiraRestClient.getMetadataClient().getIssueTypes().get());
         IssueType type = StreamSupport
-                .stream(jiraRestClient.getMetadataClient().getIssueTypes().get().spliterator(), false)
+                .stream(issueTypesForCreate.spliterator(), false)
                 .filter(it -> it.getName().equalsIgnoreCase(issueType))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Issue type not found: " + issueType));
@@ -162,8 +260,11 @@ public class JiraService {
         }
 
         if (priority != null && !priority.isEmpty()) {
+            Iterable<Priority> prioritiesForCreate = trace("createIssue.getPriorities",
+                    "projectKey=" + projectKey + ", lookupPriority=" + priority,
+                    () -> jiraRestClient.getMetadataClient().getPriorities().get());
             Priority prio = StreamSupport
-                    .stream(jiraRestClient.getMetadataClient().getPriorities().get().spliterator(), false)
+                    .stream(prioritiesForCreate.spliterator(), false)
                     .filter(p -> p.getName().equalsIgnoreCase(priority))
                     .findFirst()
                     .orElse(null);
@@ -178,7 +279,9 @@ public class JiraService {
         }
 
         IssueInput issueInput = issueBuilder.build();
-        BasicIssue createdIssue = jiraRestClient.getIssueClient().createIssue(issueInput).get();
+        BasicIssue createdIssue = trace("createIssue.createIssue",
+                "projectKey=" + projectKey + ", issueType=" + issueType + ", summary=" + summary,
+                () -> jiraRestClient.getIssueClient().createIssue(issueInput).get());
 
         return "Issue created successfully: " + createdIssue.getKey() + "\nURL: " + mcpConfiguration
                 .getJiraConfiguration()
@@ -212,8 +315,11 @@ public class JiraService {
         }
 
         if (priority != null && !priority.isEmpty()) {
+            Iterable<Priority> prioritiesForUpdate = trace("updateIssue.getPriorities",
+                    "issueKey=" + issueKey + ", lookupPriority=" + priority,
+                    () -> jiraRestClient.getMetadataClient().getPriorities().get());
             Priority prio = StreamSupport
-                    .stream(jiraRestClient.getMetadataClient().getPriorities().get().spliterator(), false)
+                    .stream(prioritiesForUpdate.spliterator(), false)
                     .filter(p -> p.getName().equalsIgnoreCase(priority))
                     .findFirst()
                     .orElse(null);
@@ -233,7 +339,8 @@ public class JiraService {
             User user = null;
             if (!assignee.isEmpty()) {
                 // Try to find the user
-                user = jiraRestClient.getUserClient().getUser(assignee).get();
+                user = trace("updateIssue.getUser", "issueKey=" + issueKey + ", assignee=" + assignee,
+                        () -> jiraRestClient.getUserClient().getUser(assignee).get());
 
             }
             updateBuilder.setAssignee(user);
@@ -245,7 +352,8 @@ public class JiraService {
         }
 
         IssueInput updateInput = updateBuilder.build();
-        jiraRestClient.getIssueClient().updateIssue(issueKey, updateInput).get();
+        trace("updateIssue.updateIssue", "issueKey=" + issueKey,
+                () -> { jiraRestClient.getIssueClient().updateIssue(issueKey, updateInput).get(); return null; });
 
         return "Issue " + issueKey + " updated successfully";
     }
@@ -258,9 +366,12 @@ public class JiraService {
                                   @ToolParam(description = "Optional comment to add with the transition") String comment) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
+        Issue issue = trace("transitionIssue.getIssue", "issueKey=" + issueKey,
+                () -> jiraRestClient.getIssueClient().getIssue(issueKey).get());
 
-        Iterable<Transition> transitions = jiraRestClient.getIssueClient().getTransitions(issue).get();
+        Iterable<Transition> transitions = trace("transitionIssue.getTransitions",
+                "issueKey=" + issueKey + ", targetStatus=" + targetStatus,
+                () -> jiraRestClient.getIssueClient().getTransitions(issue).get());
 
         Transition targetTransition = StreamSupport
                 .stream(transitions.spliterator(), false)
@@ -274,7 +385,10 @@ public class JiraService {
             transitionInput = new TransitionInput(targetTransition.getId(), Comment.valueOf(comment));
         }
 
-        jiraRestClient.getIssueClient().transition(issue, transitionInput).get();
+        final TransitionInput finalTransitionInput = transitionInput;
+        trace("transitionIssue.transition",
+                "issueKey=" + issueKey + ", targetStatus=" + targetStatus + ", transitionId=" + targetTransition.getId(),
+                () -> { jiraRestClient.getIssueClient().transition(issue, finalTransitionInput).get(); return null; });
 
         return "Issue " + issueKey + " transitioned to '" + targetStatus + "' successfully";
     }
@@ -292,11 +406,14 @@ public class JiraService {
             commentText = "No Comment Given by LLM";
         }
 
-        Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
+        Issue issue = trace("addComment.getIssue", "issueKey=" + issueKey,
+                () -> jiraRestClient.getIssueClient().getIssue(issueKey).get());
 
         Comment comment = Comment.valueOf(commentText);
 
-        jiraRestClient.getIssueClient().addComment(issue.getCommentsUri(), comment).get();
+        trace("addComment.addComment",
+                "issueKey=" + issueKey + ", commentsUri=" + issue.getCommentsUri() + ", commentLen=" + (commentText != null ? commentText.length() : 0),
+                () -> { jiraRestClient.getIssueClient().addComment(issue.getCommentsUri(), comment).get(); return null; });
 
         return "Comment added to issue " + issueKey + " successfully";
     }
@@ -307,19 +424,22 @@ public class JiraService {
                               @ToolParam(description = "Username or email of the assignee (null to unassign)") String assignee) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
+        Issue issue = trace("assignIssue.getIssue", "issueKey=" + issueKey + ", assignee=" + assignee,
+                () -> jiraRestClient.getIssueClient().getIssue(issueKey).get());
 
         User user = null;
         if (assignee != null && !assignee.isEmpty()) {
             // Try to find the user
-            user = jiraRestClient.getUserClient().getUser(assignee).get();
+            user = trace("assignIssue.getUser", "issueKey=" + issueKey + ", assignee=" + assignee,
+                    () -> jiraRestClient.getUserClient().getUser(assignee).get());
         }
 
         IssueInputBuilder updateBuilder = new IssueInputBuilder();
         updateBuilder.setAssignee(user);
 
         IssueInput updateInput = updateBuilder.build();
-        jiraRestClient.getIssueClient().updateIssue(issueKey, updateInput).get();
+        trace("assignIssue.updateIssue", "issueKey=" + issueKey + ", assignee=" + assignee,
+                () -> { jiraRestClient.getIssueClient().updateIssue(issueKey, updateInput).get(); return null; });
 
         String message = user != null ? "Issue " + issueKey + " assigned to " + user.getDisplayName() :
                 "Issue " + issueKey + " unassigned";
@@ -332,7 +452,8 @@ public class JiraService {
     public String getProjects() throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        Iterable<BasicProject> projects = jiraRestClient.getProjectClient().getAllProjects().get();
+        Iterable<BasicProject> projects = trace("getProjects", "(no params)",
+                () -> jiraRestClient.getProjectClient().getAllProjects().get());
 
         StringBuilder result = new StringBuilder("Available Projects:\n\n");
 
@@ -355,7 +476,8 @@ public class JiraService {
     public String getIssueTypes() throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        Iterable<IssueType> issueTypes = jiraRestClient.getMetadataClient().getIssueTypes().get();
+        Iterable<IssueType> issueTypes = trace("getIssueTypes", "(no params)",
+                () -> jiraRestClient.getMetadataClient().getIssueTypes().get());
 
         StringBuilder result = new StringBuilder("Available Issue Types:\n\n");
 
@@ -378,7 +500,8 @@ public class JiraService {
     public String getPriorities() throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        Iterable<Priority> priorities = jiraRestClient.getMetadataClient().getPriorities().get();
+        Iterable<Priority> priorities = trace("getPriorities", "(no params)",
+                () -> jiraRestClient.getMetadataClient().getPriorities().get());
 
         StringBuilder result = new StringBuilder("Available Priorities:\n\n");
 
@@ -399,7 +522,8 @@ public class JiraService {
     public String getStatuses() throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        Iterable<Status> statuses = jiraRestClient.getMetadataClient().getStatuses().get();
+        Iterable<Status> statuses = trace("getStatuses", "(no params)",
+                () -> jiraRestClient.getMetadataClient().getStatuses().get());
 
         StringBuilder result = new StringBuilder("Available Statuses:\n\n");
 
@@ -423,7 +547,8 @@ public class JiraService {
             @ToolParam(description = "The account ID of the user to retrieve") String accountId) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        User user = jiraRestClient.getUserClient().getUser(accountId).get();
+        User user = trace("getUserByAccountId", "accountId=" + accountId,
+                () -> jiraRestClient.getUserClient().getUser(accountId).get());
 
         return formatUserDetails(user);
     }

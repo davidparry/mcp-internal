@@ -24,6 +24,7 @@ import org.mockito.MockitoAnnotations;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -83,6 +84,9 @@ class JiraServiceTest {
     private SearchResult searchResult;
 
     @Mock
+    private TotalCount totalCount;
+
+    @Mock
     private Transition transition;
 
     @Mock
@@ -93,6 +97,9 @@ class JiraServiceTest {
 
     @Mock
     private Promise<SearchResult> searchResultPromise;
+
+    @Mock
+    private Promise<TotalCount> totalCountPromise;
 
     @Mock
     private Promise<Project> projectPromise;
@@ -201,7 +208,9 @@ class JiraServiceTest {
         // Setup mock search result
         when(searchClient.searchJql(anyString(), anyInt(), anyInt(), any())).thenReturn(searchResultPromise);
         when(searchResultPromise.get()).thenReturn(searchResult);
-        when(searchResult.getTotal()).thenReturn(2);
+        when(searchClient.totalCount(anyString())).thenReturn(totalCountPromise);
+        when(totalCountPromise.get()).thenReturn(totalCount);
+        when(totalCount.getCount()).thenReturn(2);
         when(searchResult.getIssues()).thenReturn(Arrays.asList(issue, issue));
         when(issue.getKey()).thenReturn("TEST-123");
         when(issue.getSummary()).thenReturn("Test Issue");
@@ -219,7 +228,7 @@ class JiraServiceTest {
         assertNotNull(result);
         assertTrue(result.contains("2 total issues found"));
         assertTrue(result.contains("TEST-123"));
-        verify(searchClient, times(1)).searchJql("project = TEST", 50, 0, null);
+        verify(searchClient, times(1)).searchJql("project = TEST", 50, 0, Set.of("*all"));
     }
 
     @Test
@@ -441,7 +450,9 @@ class JiraServiceTest {
         // Setup mocks
         when(searchClient.searchJql(anyString(), anyInt(), anyInt(), any())).thenReturn(searchResultPromise);
         when(searchResultPromise.get()).thenReturn(searchResult);
-        when(searchResult.getTotal()).thenReturn(0);
+        when(searchClient.totalCount(anyString())).thenReturn(totalCountPromise);
+        when(totalCountPromise.get()).thenReturn(totalCount);
+        when(totalCount.getCount()).thenReturn(0);
         when(searchResult.getIssues()).thenReturn(Collections.emptyList());
 
         // Execute with null maxResults
@@ -449,7 +460,7 @@ class JiraServiceTest {
 
         // Verify - should default to 50
         assertNotNull(result);
-        verify(searchClient, times(1)).searchJql("project = TEST", 50, 0, null);
+        verify(searchClient, times(1)).searchJql("project = TEST", 50, 0, Set.of("*all"));
     }
 
     @Test
@@ -726,7 +737,9 @@ class JiraServiceTest {
         // Setup mocks for empty search
         when(searchClient.searchJql(anyString(), anyInt(), anyInt(), any())).thenReturn(searchResultPromise);
         when(searchResultPromise.get()).thenReturn(searchResult);
-        when(searchResult.getTotal()).thenReturn(0);
+        when(searchClient.totalCount(anyString())).thenReturn(totalCountPromise);
+        when(totalCountPromise.get()).thenReturn(totalCount);
+        when(totalCount.getCount()).thenReturn(0);
         when(searchResult.getIssues()).thenReturn(Collections.emptyList());
 
         // Execute
@@ -735,7 +748,7 @@ class JiraServiceTest {
         // Verify
         assertNotNull(result);
         assertTrue(result.contains("0 total issues found") || result.contains("No issues found"));
-        verify(searchClient, times(1)).searchJql("project = NONEXISTENT", 50, 0, null);
+        verify(searchClient, times(1)).searchJql("project = NONEXISTENT", 50, 0, Set.of("*all"));
     }
 
     @Test
@@ -773,7 +786,9 @@ class JiraServiceTest {
         // Setup mock issue without assignee
         when(searchClient.searchJql(anyString(), anyInt(), anyInt(), any())).thenReturn(searchResultPromise);
         when(searchResultPromise.get()).thenReturn(searchResult);
-        when(searchResult.getTotal()).thenReturn(1);
+        when(searchClient.totalCount(anyString())).thenReturn(totalCountPromise);
+        when(totalCountPromise.get()).thenReturn(totalCount);
+        when(totalCount.getCount()).thenReturn(1);
         when(searchResult.getIssues()).thenReturn(Collections.singletonList(issue));
         when(issue.getKey()).thenReturn("TEST-888");
         when(issue.getSummary()).thenReturn("Unassigned Issue");
