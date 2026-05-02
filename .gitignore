@@ -36,5 +36,6 @@ out/
 ### VS Code ###
 .vscode/
 /inspector/logs/
+/inspector/config.json
 /logs/
 /.env
