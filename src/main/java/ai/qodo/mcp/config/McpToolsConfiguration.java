@@ -22,7 +22,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
-import javax.swing.text.html.Option;
+import org.springframework.beans.factory.annotation.Value;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -50,6 +51,9 @@ public class McpToolsConfiguration {
     private String defaultLocalPath;
     private boolean rootsInitialized = false;
     private McpSyncServerExchange serverExchange;
+
+    @Value("${mcp.default-root-path:}")
+    private String fallbackRootPath;
 
 
     public String getDefaultLocalPath() {
@@ -138,9 +142,15 @@ public class McpToolsConfiguration {
             }
 
             logger.info("Waiting for roots to be initialized...");
-            boolean received = this.rootsLatch.await(90, TimeUnit.SECONDS);
+            boolean received = this.rootsLatch.await(15, TimeUnit.SECONDS);
             if (!received) {
-                logger.warn("Timeout waiting for roots. Proceeding without default path.");
+                if (fallbackRootPath != null && !fallbackRootPath.isBlank()) {
+                    this.defaultLocalPath = new File(fallbackRootPath).getAbsolutePath();
+                    this.rootsInitialized = true;
+                    logger.info("Using fallback root path: {}", this.defaultLocalPath);
+                } else {
+                    logger.warn("Timeout waiting for roots and no fallback configured. Proceeding without default path.");
+                }
             }
         }
     }

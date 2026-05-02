@@ -304,6 +304,42 @@ class JiraServiceTest {
     }
 
     @Test
+    void testShouldAddDefaultCommentWhenCommentTextIsNull() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issue.getCommentsUri()).thenReturn(URI.create("https://test.atlassian.net/rest/api/2/issue/TEST-123/comment"));
+        when(issueClient.addComment(any(URI.class), any(Comment.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute with null comment
+        String result = jiraService.addComment("TEST-123", null);
+
+        // Verify it still succeeds with default comment
+        assertNotNull(result);
+        assertTrue(result.contains("Comment added to issue TEST-123 successfully"));
+        verify(issueClient, times(1)).addComment(any(URI.class), any(Comment.class));
+    }
+
+    @Test
+    void testShouldAddDefaultCommentWhenCommentTextIsEmpty() throws ExecutionException, InterruptedException {
+        // Setup mocks
+        when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);
+        when(issuePromise.get()).thenReturn(issue);
+        when(issue.getCommentsUri()).thenReturn(URI.create("https://test.atlassian.net/rest/api/2/issue/TEST-123/comment"));
+        when(issueClient.addComment(any(URI.class), any(Comment.class))).thenReturn(voidPromise);
+        when(voidPromise.get()).thenReturn(null);
+
+        // Execute with empty comment
+        String result = jiraService.addComment("TEST-123", "   ");
+
+        // Verify it still succeeds with default comment
+        assertNotNull(result);
+        assertTrue(result.contains("Comment added to issue TEST-123 successfully"));
+        verify(issueClient, times(1)).addComment(any(URI.class), any(Comment.class));
+    }
+
+    @Test
     void testShouldAssignIssueToUser() throws ExecutionException, InterruptedException {
         // Setup mocks
         when(issueClient.getIssue("TEST-123")).thenReturn(issuePromise);

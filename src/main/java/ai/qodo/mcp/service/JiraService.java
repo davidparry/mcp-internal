@@ -286,10 +286,10 @@ public class JiraService {
             @ToolParam(description = "Comment text to add - must not be empty", required = true) String commentText) throws ExecutionException, InterruptedException {
         ensureClientInitialized();
 
-        // Validate that comment text is not null or empty
+        // Default comment if LLM did not provide one
         if (commentText == null || commentText.trim().isEmpty()) {
-            logger.error("Comment for issueKey {} is null or empty!!", issueKey);
-            throw new IllegalArgumentException("Comment body cannot be empty. You must always provide a non-empty " + "comment text when adding a comment to a Jira issue.");
+            logger.warn("Comment for issueKey {} is null or empty, using default comment", issueKey);
+            commentText = "No Comment Given by LLM";
         }
 
         Issue issue = jiraRestClient.getIssueClient().getIssue(issueKey).get();
